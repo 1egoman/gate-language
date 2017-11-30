@@ -151,3 +151,23 @@ func TestIdentifiersOr(t *testing.T) {
     t.Error("Fail!")
   }
 }
+
+// a or let
+func TestIdentifiersCannotBeAReservedWord(t *testing.T) {
+  _, err := Tokenizer("a or let")
+  if err == nil {
+    t.Error("err was nil!")
+    return
+  }
+  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 6:1 - Identifier let is a reserved word. Stop.") { t.Error("Error: "+err.Error()) }
+}
+
+// let return = 1
+func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
+  _, err := Tokenizer("let return = 1")
+  if err == nil {
+    t.Error("err was nil!")
+    return
+  }
+  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 1:1 - Identifier return is a reserved word, and cannot be assigned to. Stop.") { t.Error("Error: "+err.Error()) }
+}

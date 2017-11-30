@@ -6,7 +6,7 @@ import (
   "errors"
 )
 
-var NO_DATA func(string) map[string]interface{} = func(m string) map[string]interface{} {
+var NO_DATA func([]string) map[string]interface{} = func(m []string) map[string]interface{} {
   return map[string]interface{}{}
 }
 
@@ -21,7 +21,8 @@ type Token struct {
   Name string
   Type TokenType
   Match *regexp.Regexp
-  GetData func(string) map[string]interface{}
+  GetData func([]string) map[string]interface{}
+  SideEffect func([]string, *StackFrame)
 }
 
 var TOKENS []Token = []Token{
@@ -36,9 +37,19 @@ var TOKENS []Token = []Token{
     Name: "BOOL",
     Type: SINGLE,
     Match: regexp.MustCompile("^(1|0)"),
-    GetData: func(match string) map[string]interface{} {
+    GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{
-        "Value": match == "1",
+        "Value": match[1] == "1",
+      };
+    },
+  },
+  Token{
+    Name: "ASSIGNMENT",
+    Type: SINGLE,
+    Match: regexp.MustCompile("^let ?([A-Za-z_][A-Za-z0-9_]*) ?= ?"),
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{
+        "Name": match[1],
       };
     },
   },
@@ -46,11 +57,12 @@ var TOKENS []Token = []Token{
     Name: "IDENTIFIER",
     Type: SINGLE,
     Match: regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*"),
-    GetData: func(match string) map[string]interface{} {
-      return map[string]interface{}{"Value": match};
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{"Value": match[0]};
     },
   },
 }
+var RESERVED_WORDS []string = []string{"let", "func", "return"}
 
 type Node struct {
   Token string
@@ -60,11 +72,28 @@ type Node struct {
   Children *[]Node
 }
 
+type VariableType string
+const (
+  VALUE VariableType = "VALUE"
+  FUNC VariableType = "FUNC"
+)
+
+type Variable struct {
+  Type VariableType
+  Name string
+  value *[]Node
+}
+
+type StackFrame struct {
+  Type string
+  Variables *[]Variable
+  Nodes *[]Node
+}
+
 func Validator(nodes []Node) error {
   DUMMY_NODE := Node{Token: "", Data: map[string]interface{}{}, Row: -1, Col: -1}
 
   for i := 0; i < len(nodes); i++ {
-
     // Create an array of nodes before (where the index is the number of tokens previous to the
     // current token)
     before := []Node{DUMMY_NODE}
@@ -113,6 +142,24 @@ func Validator(nodes []Node) error {
         return errors.New("Not operator missing a boolean/group on the right hand side")
       }
     }
+
+    if nodes[i].Token == "IDENTIFIER" {
+      // Ensure that the identifier isn't a reserved word.
+      for _, reserved := range RESERVED_WORDS {
+        if nodes[i].Data["Value"] == reserved {
+          return errors.New(fmt.Sprintf("Identifier %s is a reserved word", reserved))
+        }
+      }
+    }
+
+    if nodes[i].Token == "ASSIGNMENT" {
+      // Ensure that the identifier isn't a reserved word.
+      for _, reserved := range RESERVED_WORDS {
+        if nodes[i].Data["Name"] == reserved {
+          return errors.New(fmt.Sprintf("Identifier %s is a reserved word, and cannot be assigned to", reserved))
+        }
+      }
+    }
   }
 
   return nil
@@ -123,7 +170,13 @@ func Tokenizer(input string) (*[]Node, error) {
 
   root := &[]Node{}
   children := root
-  stacks := []*[]Node{root} // A slice of pointers to different locations in the stack
+  // A slice of pointers to different locations in the stack
+  stacks := []StackFrame{
+    StackFrame{
+      Type: "ROOT",
+      Nodes: root,
+    },
+  }
 
   // Initial values for current column and row.
   currentRow := 1
@@ -146,7 +199,7 @@ func Tokenizer(input string) (*[]Node, error) {
 
     // Try to find a matching token.
     for _, token := range TOKENS {
-      if result := token.Match.Find(code); result != nil {
+      if result := token.Match.FindStringSubmatch(string(code)); result != nil {
         // The token we looped over matched!
 
         if token.Type == SINGLE {
@@ -155,7 +208,7 @@ func Tokenizer(input string) (*[]Node, error) {
             Token: token.Name,
             Row: currentRow,
             Col: currentCol,
-            Data: token.GetData(string(result)),
+            Data: token.GetData(result),
             Children: nil,
           })
         } else if token.Type == WRAPPER_START {
@@ -164,12 +217,16 @@ func Tokenizer(input string) (*[]Node, error) {
             Token: token.Name,
             Row: currentRow,
             Col: currentCol,
-            Data: token.GetData(string(result)),
+            Data: token.GetData(result),
             Children: &[]Node{},
           })
 
           // Add the new stack frame to the end of the slice that stores all stack frames.
-          stacks = append(stacks, &value)
+          stacks = append(stacks, StackFrame{
+            Type: token.Name, // Ie, "GROUP" or "BLOCK", etc
+            Nodes: &value,
+            Variables: &[]Variable{},
+          })
 
           // Use the children of the just appeneded node as the location to add more tokens into.
           *children = []Node{}
@@ -185,17 +242,36 @@ func Tokenizer(input string) (*[]Node, error) {
             ))
           }
 
+          // Ensure that the stack frame we are closing has the same type as the symbol used to
+          // close it.
+          lastStackFrame := stacks[len(stacks)-1]
+          typeShouldBe := regexp.MustCompile(`_END$`).ReplaceAllString(token.Name, "")
+          if lastStackFrame.Type != typeShouldBe {
+            return nil, errors.New(fmt.Sprintf(
+              "Error: Attempted to close wrapper at %d:%d with a %s token, and not a %s_END token. Stop.",
+              currentRow,
+              currentCol,
+              token.Name,
+              lastStackFrame.Type,
+            ))
+          }
+
           // Assign the `children` pointer back to the stack frame that it belongs to (ie, the last
           // node in the last stack frame)
-          lastStackFrame := *stacks[len(stacks)-1]
-          lastNode := lastStackFrame[len(lastStackFrame) - 1]
+          lastStackFrameNodes := *lastStackFrame.Nodes
+          lastNode := lastStackFrameNodes[len(lastStackFrameNodes) - 1]
           *lastNode.Children = *children
 
           // Reassign children pointer back to its old value.
-          *children = *stacks[len(stacks) - 1]
+          *children = *(stacks[len(stacks) - 1].Nodes)
 
           // Pop the last stack frome off the end of the stack list now that it has been closed.
           stacks = stacks[:len(stacks) - 1]
+        }
+
+        // Run any custom side effects
+        if token.SideEffect != nil {
+          token.SideEffect(result, &stacks[len(stacks)-1])
         }
 
         // Verify that the children validates properly.
@@ -209,16 +285,16 @@ func Tokenizer(input string) (*[]Node, error) {
         }
 
         // Add the correct amount of offset to the current row and column to account for this token.
-        for i := 0; i < len(result); i++ {
+        for i := 0; i < len(result[0]); i++ {
           currentRow += 1
-          if result[i] == '\n' {
+          if result[0][i] == '\n' {
             currentCol += 1
             currentRow = 0
           }
         }
 
         // Remove the token from the start of the input string we are looping over.
-        code = code[len(result):]
+        code = code[len(result[0]):]
         continue Outer;
       }
     }
@@ -266,7 +342,7 @@ func PrintAst(tokens *[]Node, indent int) {
 }
 
 func main() {
-  result, err := Tokenizer("(a and b)")
+  result, err := Tokenizer("let c = a and b")
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
