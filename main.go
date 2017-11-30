@@ -25,6 +25,13 @@ type Token struct {
 }
 
 var TOKENS []Token = []Token{
+  Token{Name: "OP_AND", Type: SINGLE, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
+  Token{Name: "OP_OR", Type: SINGLE, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
+  Token{Name: "OP_NOT", Type: SINGLE, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
+
+  Token{Name: "GROUP", Type: WRAPPER_START, Match: regexp.MustCompile("^\\("), GetData: NO_DATA},
+  Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
+
   Token{
     Name: "BOOL",
     Type: SINGLE,
@@ -35,11 +42,14 @@ var TOKENS []Token = []Token{
       };
     },
   },
-  Token{Name: "OP_AND", Type: SINGLE, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
-  Token{Name: "OP_OR", Type: SINGLE, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
-
-  Token{Name: "GROUP", Type: WRAPPER_START, Match: regexp.MustCompile("^\\("), GetData: NO_DATA},
-  Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
+  Token{
+    Name: "IDENTIFIER",
+    Type: SINGLE,
+    Match: regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*"),
+    GetData: func(match string) map[string]interface{} {
+      return map[string]interface{}{"Value": match};
+    },
+  },
 }
 
 type Node struct {
@@ -81,20 +91,26 @@ func Validator(nodes []Node) error {
     // ----------
 
     if nodes[i].Token == "OP_AND" {
-      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" ) {
+      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
         return errors.New("And operator missing a boolean/group on the left hand side")
       }
-      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" ) {
+      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
         return errors.New("And operator missing a boolean/group on the right hand side")
       }
     }
 
     if nodes[i].Token == "OP_OR" {
-      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" ) {
+      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
         return errors.New("Or operator missing a boolean/group on the left hand side")
       }
-      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" ) {
+      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
         return errors.New("Or operator missing a boolean/group on the right hand side")
+      }
+    }
+
+    if nodes[i].Token == "OP_OR" {
+      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
+        return errors.New("Not operator missing a boolean/group on the right hand side")
       }
     }
   }
@@ -157,8 +173,9 @@ func Tokenizer(input string) (*[]Node, error) {
 
           // Use the children of the just appeneded node as the location to add more tokens into.
           *children = []Node{}
-
         } else if token.Type == WRAPPER_END {
+          // End the wrapper token
+
           // Ensure that a token of this type makes sense in this context.
           if len(stacks) < 2 {
             return nil, errors.New(fmt.Sprintf(
@@ -212,12 +229,20 @@ func Tokenizer(input string) (*[]Node, error) {
       displayCode = displayCode[10:]
     }
     return nil, errors.New(fmt.Sprintf(
-      "Error: No such token found at %d:%d - `%s`. Stop.\n",
+      "Error: No such token found at %d:%d - `%s`. Stop.",
       currentRow,
       currentCol,
       displayCode,
     ))
     break
+  }
+
+  // Ensure that the stack is only 1 item long (the root element) before returning.
+  if len(stacks) > 1 {
+    return nil, errors.New(fmt.Sprintf(
+      "Error: Stack is not empty (%d extra) at end of program (are there more open parenthesis than closing ones?). Stop.",
+      len(stacks) - 1,
+    ))
   }
 
   return root, nil
@@ -241,7 +266,7 @@ func PrintAst(tokens *[]Node, indent int) {
 }
 
 func main() {
-  result, err := Tokenizer("(1 or 0) and (0 or 1)")
+  result, err := Tokenizer("(a and b)")
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
