@@ -188,7 +188,7 @@ func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
 
 // BLOCKS
 func TestBlock(t *testing.T) {
-  result, err := Tokenizer(`func a(b c d) {
+  result, err := Tokenizer(`block a(b c d) {
     let a = 1
   }`)
   if err != nil { t.Error("Error:"+err.Error()) }
@@ -209,7 +209,7 @@ func TestBlock(t *testing.T) {
 }
 
 func TestBlockWithReturn(t *testing.T) {
-  result, err := Tokenizer(`func a(b c d) {
+  result, err := Tokenizer(`block a(b c d) {
     let e = (b and c)
     return (e and (c or d))
   }`)
@@ -245,7 +245,7 @@ func TestBlockWithReturn(t *testing.T) {
 }
 
 func TestBlockReturningMultipleValues(t *testing.T) {
-  result, err := Tokenizer(`func a(b c d) {
+  result, err := Tokenizer(`block a(b c d) {
     return
       1
       a
@@ -269,7 +269,7 @@ func TestBlockReturningMultipleValues(t *testing.T) {
 }
 
 func TestBlockReturnCannotHaveNonExpressionTokens(t *testing.T) {
-  _, err := Tokenizer(`func a(b c d) {
+  _, err := Tokenizer(`block a(b c d) {
     return
     let a = 1
   }`)

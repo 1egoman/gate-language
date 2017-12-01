@@ -36,8 +36,8 @@ var TOKENS []Token = []Token{
   Token{
     Name: "BLOCK",
     Type: WRAPPER_START,
-    // func identifier(as many identifiers ay needed in here all space seperated) {
-    Match: regexp.MustCompile(`(?m)func\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    // block identifier(as many identifiers ay needed in here all space seperated) {
+    Match: regexp.MustCompile(`(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
     GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{
         "Name": match[1],
@@ -120,7 +120,7 @@ var TOKENS []Token = []Token{
     },
   },
 }
-var RESERVED_WORDS []string = []string{"let", "func", "return"}
+var RESERVED_WORDS []string = []string{"let", "block", "return"}
 
 type Node struct {
   Token string
@@ -397,7 +397,7 @@ func PrintAst(tokens *[]Node, indent int) {
 }
 
 func main() {
-  result, err := Tokenizer(`func a(b c d) {
+  result, err := Tokenizer(`block a(b c d) {
     return
       1
       0
