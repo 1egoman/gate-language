@@ -162,6 +162,20 @@ func TestIdentifiersCannotBeAReservedWord(t *testing.T) {
   if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 6:1 - Identifier let is a reserved word. Stop.") { t.Error("Error: "+err.Error()) }
 }
 
+// ASSIGNMENT
+
+// let a = 1
+func TestAssignment(t *testing.T) {
+  result, err := Tokenizer("let a = 1")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Name": "a"}},
+    Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": true}},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // let return = 1
 func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
   _, err := Tokenizer("let return = 1")
@@ -170,4 +184,74 @@ func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
     return
   }
   if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 1:1 - Identifier return is a reserved word, and cannot be assigned to. Stop.") { t.Error("Error: "+err.Error()) }
+}
+
+// BLOCKS
+func TestBlock(t *testing.T) {
+  result, err := Tokenizer(`func a(b c d) {
+    let a = 1
+  }`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "BLOCK",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "a", "Params": "b c d"},
+      Children: &[]Node{
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Name": "a"}},
+        Node{Token: "BOOL", Row: 13, Col: 2, Data: map[string]interface{}{"Value": true}},
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+
+func TestBlockWithReturn(t *testing.T) {
+  result, err := Tokenizer(`func a(b c d) {
+    let e = (b and c)
+    return (e and (c or d))
+  }`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "BLOCK",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "a", "Params": "b c d"},
+      Children: &[]Node{
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Name": "e"}},
+        Node{Token: "GROUP", Row: 13, Col: 2, Data: NONE, Children: &[]Node{
+          Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "b"}},
+          Node{Token: "OP_AND", Row: 16, Col: 2, Data: NONE},
+          Node{Token: "IDENTIFIER", Row: 20, Col: 2, Data: map[string]interface{}{"Value": "c"}},
+        }},
+        Node{Token: "BLOCK_RETURN", Row: 5, Col: 3, Data: NONE},
+        Node{Token: "GROUP", Row: 12, Col: 3, Data: NONE, Children: &[]Node{
+          Node{Token: "IDENTIFIER", Row: 13, Col: 3, Data: map[string]interface{}{"Value": "e"}},
+          Node{Token: "OP_AND", Row: 15, Col: 3, Data: NONE},
+          Node{Token: "GROUP", Row: 19, Col: 3, Data: NONE, Children: &[]Node{
+            Node{Token: "IDENTIFIER", Row: 20, Col: 3, Data: map[string]interface{}{"Value": "c"}},
+            Node{Token: "OP_OR", Row: 22, Col: 3, Data: NONE},
+            Node{Token: "IDENTIFIER", Row: 25, Col: 3, Data: map[string]interface{}{"Value": "d"}},
+          }},
+        }},
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+
+func TestBlockReturnCannotHaveNonExpressionTokens(t *testing.T) {
+  _, err := Tokenizer(`func a(b c d) {
+    return
+    let a = 1
+  }`)
+  if err == nil {
+    t.Error("err was nil!")
+    return
+  }
+  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 5:3 - Non-expression token ASSIGNMENT found after return. Stop.") { t.Error("Error: "+err.Error()) }
 }

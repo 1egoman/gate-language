@@ -34,6 +34,26 @@ var TOKENS []Token = []Token{
   Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
 
   Token{
+    Name: "BLOCK",
+    Type: WRAPPER_START,
+    // func identifier(as many identifiers ay needed in here all space seperated) {
+    Match: regexp.MustCompile(`(?m)func\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{
+        "Name": match[1],
+        "Params": match[2],
+      };
+    },
+  },
+  Token{Name: "BLOCK_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\}"), GetData: NO_DATA},
+  Token{
+    Name: "BLOCK_RETURN",
+    Type: SINGLE,
+    Match: regexp.MustCompile("^return"),
+    GetData: NO_DATA,
+  },
+
+  Token{
     Name: "BOOL",
     Type: SINGLE,
     Match: regexp.MustCompile("^(1|0)"),
@@ -72,21 +92,8 @@ type Node struct {
   Children *[]Node
 }
 
-type VariableType string
-const (
-  VALUE VariableType = "VALUE"
-  FUNC VariableType = "FUNC"
-)
-
-type Variable struct {
-  Type VariableType
-  Name string
-  value *[]Node
-}
-
 type StackFrame struct {
   Type string
-  Variables *[]Variable
   Nodes *[]Node
 }
 
@@ -160,6 +167,15 @@ func Validator(nodes []Node) error {
         }
       }
     }
+
+    if nodes[i].Token == "BLOCK_RETURN" && len(nodes) > i {
+      // Ensure that the only groups, literals, and identifiers are found after a return.
+      for _, node := range nodes[i+1:] {
+        if node.Token != "BOOL" && node.Token != "GROUP" && node.Token != "IDENTIFIER" {
+          return errors.New(fmt.Sprintf("Non-expression token %s found after return", node.Token))
+        }
+      }
+    }
   }
 
   return nil
@@ -185,12 +201,14 @@ func Tokenizer(input string) (*[]Node, error) {
   Outer:
   for len(code) > 0 {
     // Trim whitespace frm the start of the code
-    for i := 0; i < len(code); i++ {
-      if code[i] == ' ' || code[i] == '\t' {
+    codeLength := len(code)
+    for i := 0; i < codeLength; i++ {
+      if code[0] == ' ' || code[0] == '\t' {
         currentRow += 1
         code = code[1:]
-      } else if code[i] == '\n' {
+      } else if code[0] == '\n' {
         currentCol += 1
+        currentRow = 1
         code = code[1:]
       } else {
         break;
@@ -225,7 +243,6 @@ func Tokenizer(input string) (*[]Node, error) {
           stacks = append(stacks, StackFrame{
             Type: token.Name, // Ie, "GROUP" or "BLOCK", etc
             Nodes: &value,
-            Variables: &[]Variable{},
           })
 
           // Use the children of the just appeneded node as the location to add more tokens into.
@@ -342,7 +359,10 @@ func PrintAst(tokens *[]Node, indent int) {
 }
 
 func main() {
-  result, err := Tokenizer("let c = a and b")
+  result, err := Tokenizer(`func a(b c d) {
+    let e = (b and c)
+    return (e and (c or d))
+  }`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
