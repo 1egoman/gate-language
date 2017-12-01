@@ -4,6 +4,7 @@ import (
   "fmt"
   "regexp"
   "errors"
+  "strings"
 )
 
 var NO_DATA func([]string) map[string]interface{} = func(m []string) map[string]interface{} {
@@ -74,9 +75,15 @@ var TOKENS []Token = []Token{
     // block identifier(as many identifiers ay needed in here all space seperated) {
     Match: regexp.MustCompile(`(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
     GetData: func(match []string) map[string]interface{} {
+      // Calculate an input quantity
+      inputQuantity := 0
+      if len(match[2]) > 0 {
+        inputQuantity = len(strings.Split(strings.Trim(match[2], " \n\t"), " "))
+      }
       return map[string]interface{}{
         "Name": match[1],
         "Params": match[2],
+        "InputQuantity": inputQuantity,
         "OutputQuantity": 0, // Will be overridden within `BLOCK_END`
       };
     },
@@ -129,10 +136,10 @@ var TOKENS []Token = []Token{
   Token{
     Name: "ASSIGNMENT",
     Type: SINGLE,
-    Match: regexp.MustCompile("^let ?([A-Za-z_][A-Za-z0-9_]*) ?= ?"),
+    Match: regexp.MustCompile(`^let +(([A-Za-z_][A-Za-z0-9_]* +)*[A-Za-z_][A-Za-z0-9_]*) ?= ?`),
     GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{
-        "Name": match[1],
+        "Names": match[1],
       };
     },
   },
@@ -235,8 +242,10 @@ func Validator(nodes []Node) error {
     if nodes[i].Token == "ASSIGNMENT" {
       // Ensure that the identifier isn't a reserved word.
       for _, reserved := range RESERVED_WORDS {
-        if nodes[i].Data["Name"] == reserved {
-          return errors.New(fmt.Sprintf("Identifier %s is a reserved word, and cannot be assigned to", reserved))
+        for _, name := range strings.Split(nodes[i].Data["Names"].(string), " ") {
+          if name == reserved {
+            return errors.New(fmt.Sprintf("Identifier %s is a reserved word, and cannot be assigned to", reserved))
+          }
         }
       }
     }
@@ -430,6 +439,59 @@ func PrintAst(tokens *[]Node, indent int) {
     }
   }
 }
+
+
+type InterpreterVariable struct {
+  Name string
+  Value bool
+}
+
+type InterpreterBlock struct {
+  Name string
+  Inputs []string
+  OutputQuantity int
+}
+
+type InterpreterFrame struct {
+  Variables *[]InterpreterVariable
+  Blocks *[]InterpreterBlock
+}
+
+// func Interpreter(tok *[]Node) {
+//   if tok == nil { return }
+//   tokens := *tok
+//
+//   for index := 0; index < len(tokens); index++ {
+//     token := tokens[index]
+//
+//     // Get a refernce to the token before the current token
+//     var tokenBefore *Node
+//     if index > 0 {
+//       tokenBefore = &tokens[index - 1]
+//     } else {
+//       tokenBefore = nil
+//     }
+//
+//     // Get a refernce to the token after the toke after the current token
+//     var tokenAfter *Node
+//     if index < len(index) - 1 {
+//       tokenAfter = &tokens[index - 1]
+//     } else {
+//       tokenAfter = nil
+//     }
+//
+//     switch (token.Name) {
+//     case "OP_AND":
+//       // TODO
+//     }
+//   }
+// }
+
+
+
+
+
+
 
 func main() {
   result, err := Tokenizer(`foo(a b 1)`)
