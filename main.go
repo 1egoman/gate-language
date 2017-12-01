@@ -457,35 +457,147 @@ type InterpreterFrame struct {
   Blocks *[]InterpreterBlock
 }
 
-// func Interpreter(tok *[]Node) {
-//   if tok == nil { return }
-//   tokens := *tok
-//
-//   for index := 0; index < len(tokens); index++ {
-//     token := tokens[index]
-//
-//     // Get a refernce to the token before the current token
-//     var tokenBefore *Node
-//     if index > 0 {
-//       tokenBefore = &tokens[index - 1]
-//     } else {
-//       tokenBefore = nil
-//     }
-//
-//     // Get a refernce to the token after the toke after the current token
-//     var tokenAfter *Node
-//     if index < len(index) - 1 {
-//       tokenAfter = &tokens[index - 1]
-//     } else {
-//       tokenAfter = nil
-//     }
-//
-//     switch (token.Name) {
-//     case "OP_AND":
-//       // TODO
-//     }
-//   }
-// }
+func NodeIsExpression(node *Node) bool {
+  if node != nil {
+    return node.Token == "BOOL" || node.Token == "GROUP" || node.Token == "IDENTIFIER"
+  } else {
+    return false
+  }
+}
+
+func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
+  if tok == nil { return nil, nil }
+  nodes := *tok
+
+  // Add a new stack frame by reference
+  *frames = append(*frames, InterpreterFrame{
+    Variables: &[]InterpreterVariable{},
+    Blocks: &[]InterpreterBlock{},
+  })
+
+  returnValues := &[]bool{}
+
+  for _, operation := range []string{"PROCESS_ASSIGNMENTS", "RESOLVE_IDENTIFIERS", "GROUP_FLATTEN"} {
+    switch (operation) {
+
+    case "PROCESS_ASSIGNMENTS":
+      nodesLength := len(nodes)
+      for index := 0; index < nodesLength; index++ {
+        if nodes[index].Token == "ASSIGNMENT" {
+          assignmentNames := strings.Split(nodes[index].Data["Names"].(string), " ")
+
+          // Ensure there are enough tokens after the assignment to perform it properly, and that
+          // these tokens are expressions.
+          // Loop from (index + 1) ==> (index + 1) + len(assignmentNames)
+          for i := index + 1; i < index + 1 + len(assignmentNames); i++ {
+            if i > (len(nodes) - 1) {
+              return nil, errors.New(fmt.Sprintf(
+                "There aren't %d tokens after assignment at %d:%d - only found %d. Please add more expressions to make this assignment valid. Most likely this is because the assignment is the last token?",
+                len(assignmentNames),
+                nodes[index].Row,
+                nodes[index].Col,
+                i - (index + 1),
+              ))
+            }
+            // Ensure the nodes after the assignment are expressions.
+            if NodeIsExpression(&nodes[i]) == false {
+              return nil, errors.New(fmt.Sprintf(
+                "There aren't %d expression tokens after assignment at %d:%d - only found %d. Please add more expressions to make this assignment valid.",
+                len(assignmentNames),
+                nodes[index].Row,
+                nodes[index].Col,
+                i - (index + 1),
+              ))
+            }
+          }
+
+          // Get the values to assign to each expression
+          // Note the above is safe because of the above checks.
+          assignmentValues := nodes[index+1:index+1+len(assignmentNames)]
+
+          // Evaluate each expression that is to be assigned.
+          results, err := Interpreter(&assignmentValues, frames)
+          if err != nil { return nil, err }
+          if results == nil {
+            // Should never happen.
+            return nil, errors.New("Interpreter returned nil when trying to assign")
+          }
+          assignmentValuesResults := *results
+
+          // Actually do the assignment!
+          for i := 0; i < len(assignmentNames); i++ {
+            name := assignmentNames[i]
+            value := assignmentValuesResults[i]
+
+            // Ensure that the variable hasn't been assigned before.
+            framesValue := *frames
+            currentFrame := framesValue[len(framesValue) - 1]
+            for _, variable := range *(currentFrame.Variables) {
+              if variable.Name == name {
+                return nil, errors.New(fmt.Sprintf(
+                  "Cannot assign variable %s at %d:%d - variable already defined!",
+                  name,
+                  nodes[index].Row,
+                  nodes[index].Col,
+                ))
+              }
+            }
+
+            *currentFrame.Variables = append(*currentFrame.Variables, InterpreterVariable{
+              Name: name,
+              Value: value,
+            })
+          }
+
+          // Finally, delete the node from the node list. It's done its job.
+          nodes = append(nodes[:index], nodes[index:]...)
+        }
+      }
+
+    case "RESOLVE_IDENTIFIERS":
+      for index := 0; index < len(nodes); index++ {
+        if nodes[index].Token == "IDENTIFIER" {
+          identifierName := nodes[index].Data["Value"].(string)
+
+          framesValue := *frames
+
+          // Look up identifier, starting at the most recent frame and working our way back up.
+          var valueOfVariable *bool = nil
+          FrameLoop:
+          for i := len(framesValue) - 1; i >= 0; i-- {
+            frame := framesValue[i]
+            for _, variable := range *(frame.Variables) {
+              if variable.Name == identifierName {
+                // Found the variable!
+                valueOfVariable = &variable.Value
+                break FrameLoop;
+              }
+            }
+          }
+
+          // Ensure that the variable was found.
+          if valueOfVariable == nil {
+            return nil, errors.New(fmt.Sprintf(
+              "No such variable `%s` (located at %d:%d) was defined.",
+              identifierName,
+              nodes[index].Row,
+              nodes[index].Col,
+            ))
+          }
+
+          // If it was found, replace the identifier token with a `BOOL` token.
+          nodes[index].Token = "BOOL"
+          nodes[index].Data["Value"] = &valueOfVariable
+        }
+      }
+
+    default:
+      break;
+    }
+  }
+
+  return returnValues, nil
+}
 
 
 
@@ -494,8 +606,15 @@ type InterpreterFrame struct {
 
 
 func main() {
-  result, err := Tokenizer(`foo(a b 1)`)
+  result, err := Tokenizer(`1 and a`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
+  fmt.Println("=========")
+
+  // result, _ := Tokenizer(`let a b c = 1 0`)
+  frames := []InterpreterFrame{}
+  result2, err2 := Interpreter(result, &frames)
+  fmt.Println("Error: ", err2)
+  fmt.Println("Result: ", result2)
 }

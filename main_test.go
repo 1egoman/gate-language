@@ -342,3 +342,9 @@ func TestInvocation(t *testing.T) {
     t.Error("Fail!")
   }
 }
+
+
+
+//
+// INTERPRETER
+//
