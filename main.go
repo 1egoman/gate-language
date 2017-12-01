@@ -30,7 +30,42 @@ var TOKENS []Token = []Token{
   Token{Name: "OP_OR", Type: SINGLE, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
   Token{Name: "OP_NOT", Type: SINGLE, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
 
-  Token{Name: "GROUP", Type: WRAPPER_START, Match: regexp.MustCompile("^\\("), GetData: NO_DATA},
+  Token{
+    Name: "GROUP",
+    Type: WRAPPER_START,
+    Match: regexp.MustCompile("^\\("),
+    GetData: NO_DATA,
+
+    // Groups with an identifier right before them get converted into invocations.
+    SideEffect: func(match []string, stackframe *StackFrame) {
+      // Assert that the stackframe isn't nil.
+      if stackframe.Nodes == nil { return }
+
+      // Assert that the stackframe has at least two nodes within.
+      nodes := *stackframe.Nodes
+      if len(nodes) < 2 { return }
+
+      // Make sure the most recent node in the stack frame is a group
+      mostRecentNode := &nodes[len(nodes) - 1]
+      if mostRecentNode.Token != "GROUP" { return }
+
+      // Check to see if the token before the group was an identifier. If so, then this group isn't
+      // a group it's an invocation!
+      // identifier ()  =>  identifier()
+      //            /\- Group   /\- Invocation!
+      secondToMostRecentNode := nodes[len(nodes) - 2]
+      if secondToMostRecentNode.Token != "IDENTIFIER" { return }
+
+      // The group is an invocation!
+      mostRecentNode.Token = "INVOCATION"
+      mostRecentNode.Data["Name"] = secondToMostRecentNode.Data["Value"]
+      mostRecentNode.Row = secondToMostRecentNode.Row
+      mostRecentNode.Col = secondToMostRecentNode.Col
+
+      // Delete the penultimate node (the IDENTIFIER)
+      *stackframe.Nodes = append(nodes[:len(nodes)-2], nodes[len(nodes)-1])
+    },
+  },
   Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
 
   Token{
@@ -92,16 +127,6 @@ var TOKENS []Token = []Token{
   },
 
   Token{
-    Name: "BOOL",
-    Type: SINGLE,
-    Match: regexp.MustCompile("^(1|0)"),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{
-        "Value": match[1] == "1",
-      };
-    },
-  },
-  Token{
     Name: "ASSIGNMENT",
     Type: SINGLE,
     Match: regexp.MustCompile("^let ?([A-Za-z_][A-Za-z0-9_]*) ?= ?"),
@@ -117,6 +142,16 @@ var TOKENS []Token = []Token{
     Match: regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*"),
     GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{"Value": match[0]};
+    },
+  },
+  Token{
+    Name: "BOOL",
+    Type: SINGLE,
+    Match: regexp.MustCompile("^(1|0)"),
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{
+        "Value": match[1] == "1",
+      };
     },
   },
 }
@@ -397,12 +432,7 @@ func PrintAst(tokens *[]Node, indent int) {
 }
 
 func main() {
-  result, err := Tokenizer(`block a(b c d) {
-    return
-      1
-      0
-      a
-  }`)
+  result, err := Tokenizer(`foo(a b 1)`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
