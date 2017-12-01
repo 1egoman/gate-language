@@ -197,7 +197,7 @@ func TestBlock(t *testing.T) {
       Token: "BLOCK",
       Row: 1,
       Col: 1,
-      Data: map[string]interface{}{"Name": "a", "Params": "b c d"},
+      Data: map[string]interface{}{"Name": "a", "Params": "b c d", "OutputQuantity": 0},
       Children: &[]Node{
         Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Name": "a"}},
         Node{Token: "BOOL", Row: 13, Col: 2, Data: map[string]interface{}{"Value": true}},
@@ -219,7 +219,7 @@ func TestBlockWithReturn(t *testing.T) {
       Token: "BLOCK",
       Row: 1,
       Col: 1,
-      Data: map[string]interface{}{"Name": "a", "Params": "b c d"},
+      Data: map[string]interface{}{"Name": "a", "Params": "b c d", "OutputQuantity": 1},
       Children: &[]Node{
         Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Name": "e"}},
         Node{Token: "GROUP", Row: 13, Col: 2, Data: NONE, Children: &[]Node{
@@ -237,6 +237,30 @@ func TestBlockWithReturn(t *testing.T) {
             Node{Token: "IDENTIFIER", Row: 25, Col: 3, Data: map[string]interface{}{"Value": "d"}},
           }},
         }},
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+
+func TestBlockReturningMultipleValues(t *testing.T) {
+  result, err := Tokenizer(`func a(b c d) {
+    return
+      1
+      a
+  }`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "BLOCK",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "a", "Params": "b c d", "OutputQuantity": 2},
+      Children: &[]Node{
+        Node{Token: "BLOCK_RETURN", Row: 5, Col: 2, Data: NONE},
+        Node{Token: "BOOL", Row: 7, Col: 3, Data: map[string]interface{}{"Value": true}},
+        Node{Token: "IDENTIFIER", Row: 7, Col: 4, Data: map[string]interface{}{"Value": "a"}},
       },
     },
   }) {

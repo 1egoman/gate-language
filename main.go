@@ -42,10 +42,48 @@ var TOKENS []Token = []Token{
       return map[string]interface{}{
         "Name": match[1],
         "Params": match[2],
+        "OutputQuantity": 0, // Will be overridden within `BLOCK_END`
       };
     },
   },
-  Token{Name: "BLOCK_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\}"), GetData: NO_DATA},
+  Token{
+    Name: "BLOCK_END",
+    Type: WRAPPER_END,
+    Match: regexp.MustCompile("^\\}"),
+    GetData: NO_DATA,
+    SideEffect: func(match []string, stackframe *StackFrame) {
+      // Assert that the stackframe isn't nil.
+      if stackframe.Nodes == nil { return }
+
+      // Assert that the stackframe has nodes within.
+      nodes := *stackframe.Nodes
+      if len(nodes) == 0 { return }
+
+      // Get the most recent node in the stack frame.
+      mostRecentNode := nodes[len(nodes) - 1]
+      if mostRecentNode.Token != "BLOCK" { return }
+      blockChildren := *(mostRecentNode.Children)
+
+      // Within the block that's beng closed, was there a return? And, if so, what index token was
+      // it?
+      returnIndex := -1
+      for ct, node := range blockChildren {
+        if node.Token == "BLOCK_RETURN" {
+          returnIndex = ct
+          break;
+        }
+      }
+
+      if returnIndex == -1 {
+        // No return was found, so no tokens are beign returned.
+        mostRecentNode.Data["OutputQuantity"] = 0
+      } else {
+        // Now that the output token location is known, calculate how many tokens were after the
+        // return, and that's the number of tokens that are being returned.
+        mostRecentNode.Data["OutputQuantity"] = (len(blockChildren) - 1) - returnIndex
+      }
+    },
+  },
   Token{
     Name: "BLOCK_RETURN",
     Type: SINGLE,
@@ -360,8 +398,10 @@ func PrintAst(tokens *[]Node, indent int) {
 
 func main() {
   result, err := Tokenizer(`func a(b c d) {
-    let e = (b and c)
-    return (e and (c or d))
+    return
+      1
+      0
+      a
   }`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
