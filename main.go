@@ -465,6 +465,16 @@ func NodeIsExpression(node *Node) bool {
   }
 }
 
+func PrintFrames(frames *[]InterpreterFrame) {
+  for ct, frame := range *frames {
+    fmt.Printf("Frame %d (%d vars)", ct, len(*(frame.Variables)))
+    for _, variable := range *(frame.Variables) {
+      fmt.Printf("|- let %s = %s", variable.Name, variable.Value)
+    }
+    fmt.Println()
+  }
+}
+
 func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
   if tok == nil { return nil, nil }
   nodes := *tok
@@ -477,7 +487,12 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
 
   returnValues := &[]bool{}
 
-  for _, operation := range []string{"PROCESS_ASSIGNMENTS", "RESOLVE_IDENTIFIERS", "GROUP_FLATTEN"} {
+  for _, operation := range []string{
+    "PROCESS_ASSIGNMENTS",
+    "RESOLVE_IDENTIFIERS",
+    "FLATTEN_GROUPS",
+    "EVALUATE",
+  } {
     switch (operation) {
 
     case "PROCESS_ASSIGNMENTS":
@@ -515,6 +530,12 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
           // Note the above is safe because of the above checks.
           assignmentValues := nodes[index+1:index+1+len(assignmentNames)]
 
+          // Add a new stack frame by reference
+          *frames = append(*frames, InterpreterFrame{
+            Variables: &[]InterpreterVariable{},
+            Blocks: &[]InterpreterBlock{},
+          })
+
           // Evaluate each expression that is to be assigned.
           results, err := Interpreter(&assignmentValues, frames)
           if err != nil { return nil, err }
@@ -523,6 +544,21 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
             return nil, errors.New("Interpreter returned nil when trying to assign")
           }
           assignmentValuesResults := *results
+
+          // Remove last frame
+          frameValue := *frames
+          newFrames := frameValue[:len(frameValue)-1]
+          *frames = newFrames
+
+          if len(assignmentNames) != len(assignmentValuesResults) {
+            return nil, errors.New(fmt.Sprintf(
+              "The number of values assigned to in the assignment at %d:%d does not equal the number of values received from evaluating the right hand side (%d != %d)",
+              nodes[index].Row,
+              nodes[index].Col,
+              len(assignmentNames),
+              len(assignmentValuesResults),
+            ))
+          }
 
           // Actually do the assignment!
           for i := 0; i < len(assignmentNames); i++ {
@@ -549,8 +585,11 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
             })
           }
 
-          // Finally, delete the node from the node list. It's done its job.
-          nodes = append(nodes[:index], nodes[index:]...)
+          // Finally, delete the node and the expresisons afterwards that were used when
+          // accomplishing the assignment from the node list. It's done its job.
+          fmt.Println("------", index)
+          nodes = append(nodes[:index], nodes[index+len(assignmentNames):]...)
+          PrintAst(&nodes, 0)
         }
       }
 
@@ -587,7 +626,127 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
 
           // If it was found, replace the identifier token with a `BOOL` token.
           nodes[index].Token = "BOOL"
-          nodes[index].Data["Value"] = &valueOfVariable
+          nodes[index].Data["Value"] = *valueOfVariable
+        }
+      }
+
+    case "FLATTEN_GROUPS":
+      for index := 0; index < len(nodes); index++ {
+        // Interpret the contents of the group, and replace the group with its result.
+        if nodes[index].Token == "GROUP" {
+          result, err := Interpreter(nodes[index].Children, frames)
+          if err != nil {
+            return nil, err
+          }
+
+          if result == nil {
+            return nil, errors.New(fmt.Sprintf(
+              "Result of interpreting group at %d:%d was nil.",
+              nodes[index].Row,
+              nodes[index].Col,
+            ))
+          }
+
+          // Repalce the group with it's result.
+          if len(*result) == 1 {
+            // Replace the group with a `BOOL` token.
+            nodes[index].Token = "BOOL"
+            nodes[index].Data["Value"] = (*result)[0]
+          } else {
+            return nil, errors.New(fmt.Sprintf(
+              "Result of interpreting group at %d:%d was not one value (was %d values)!",
+              nodes[index].Row,
+              nodes[index].Col,
+              len(*result),
+            ))
+          }
+        }
+      }
+
+    case "EVALUATE":
+      DUMMY_NODE := Node{Token: "", Data: map[string]interface{}{}, Row: -1, Col: -1}
+      for index := 0; index < len(nodes); index++ {
+        switch (nodes[index].Token) {
+        case "OP_AND": fallthrough
+        case "OP_OR":
+          // Ensure the operation has operands on both sides.
+          if index == 0 {
+            return nil, errors.New(fmt.Sprintf(
+              "%s at %d:%d missing a left hand side!",
+              nodes[index].Token,
+              nodes[index].Row,
+              nodes[index].Col,
+            ))
+          }
+          if index == len(nodes) - 1 {
+            return nil, errors.New(fmt.Sprintf(
+              "%s at %d:%d missing a right hand side!",
+              nodes[index].Token,
+              nodes[index].Row,
+              nodes[index].Col,
+            ))
+          }
+
+          leftHandSide := nodes[index - 1]
+          if leftHandSide.Token != "BOOL" {
+            return nil, errors.New(fmt.Sprintf(
+              "Left hand side of %sat %d:%d is of invalid type: %s",
+              nodes[index].Token,
+              nodes[index].Row,
+              nodes[index].Col,
+              leftHandSide.Token,
+            ))
+          }
+
+          rightHandSide := nodes[index + 1]
+          if rightHandSide.Token != "BOOL" {
+            return nil, errors.New(fmt.Sprintf(
+              "Right hand side of %s at %d:%d is of invalid type: %s",
+              nodes[index].Token,
+              nodes[index].Row,
+              nodes[index].Col,
+              rightHandSide.Token,
+            ))
+          }
+
+          // Evaluate the operation, and add to the return values
+          var resultOfOperation bool
+          fmt.Println(leftHandSide.Data["Value"])
+          if nodes[index].Token == "OP_AND" {
+            resultOfOperation = leftHandSide.Data["Value"].(bool) && rightHandSide.Data["Value"].(bool)
+          } else if nodes[index].Token == "OP_OR" {
+            resultOfOperation = leftHandSide.Data["Value"].(bool) || rightHandSide.Data["Value"].(bool)
+          } else {
+            return nil, errors.New(fmt.Sprintf(
+              "Invalid operation was passed to interpreter at %d:%d",
+              nodes[index].Token,
+              nodes[index].Row,
+              nodes[index].Col,
+            ))
+          }
+          fmt.Println("RETURN 1", resultOfOperation)
+          *returnValues = append(*returnValues, resultOfOperation)
+
+          // Remove the nodes surrounding the and gate, and replace the and gate with a dummy node
+          // to mark that it has already been handled.
+          nodes = append(append(nodes[:index - 1], DUMMY_NODE), nodes[index + 2:]...)
+
+        // Don't handle a bool here - these might be arguments to other language constructs. Bools
+        // that haven't been used by other operators will get used at the end.
+        case "BOOL":
+          break
+        }
+      }
+
+      // Once complete, add any booleans that weren't used by other expressions into the result
+      // array at the right locations.
+      insertLocation := 0
+      PrintAst(&nodes, 0)
+      for index := 0; index < len(nodes); index++ {
+        if nodes[index].Token == "BOOL" {
+          *returnValues = append(*returnValues, nodes[index].Data["Value"].(bool))
+        } else if nodes[index].Token == DUMMY_NODE.Token {
+          insertLocation += 1
         }
       }
 
@@ -595,6 +754,11 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
       break;
     }
   }
+
+  // Remove last stack frame
+  frameValue := *frames
+  newFrames := frameValue[:len(frameValue)-1]
+  *frames = newFrames
 
   return returnValues, nil
 }
@@ -606,7 +770,9 @@ func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
 
 
 func main() {
-  result, err := Tokenizer(`1 and a`)
+  result, err := Tokenizer(`
+  let a = 0
+  1 or a`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0)
