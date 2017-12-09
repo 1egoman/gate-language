@@ -53,7 +53,7 @@ func TestAndValidatorWithBooleans(t *testing.T) {
     t.Error("err was nil!")
     return
   }
-  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 7:1 - And operator missing a boolean/group on the right hand side. Stop.") { t.Error("Error: "+err.Error()) }
+  if !reflect.DeepEqual(err.Error(), "Error: Attempted to parse a binary operator ([and]), but there wasn't a valid expression before the operator on line 7:1. Stop.") { t.Error("Error: "+err.Error()) }
 }
 
 // 1 or or => error
@@ -63,7 +63,27 @@ func TestOrValidatorWithBooleans(t *testing.T) {
     t.Error("err was nil!")
     return
   }
-  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 6:1 - Or operator missing a boolean/group on the right hand side. Stop.") { t.Error("Error: "+err.Error()) }
+  if !reflect.DeepEqual(err.Error(), "Error: Attempted to parse a binary operator ([or]), but there wasn't a valid expression before the operator on line 6:1. Stop.") { t.Error("Error: "+err.Error()) }
+}
+
+// 1 or => error
+func TestOrValidatorWithNoRightHandSide(t *testing.T) {
+  _, err := Tokenizer("1 or")
+  if err == nil {
+    t.Error("err was nil!")
+    return
+  }
+  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 5:1 - Or operator right hand side is not a node. Stop.") { t.Error("Error: "+err.Error()) }
+}
+
+// 1 and => error
+func TestAndValidatorWithNoRightHandSide(t *testing.T) {
+  _, err := Tokenizer("1 and")
+  if err == nil {
+    t.Error("err was nil!")
+    return
+  }
+  if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 6:1 - And operator right hand side is not a node. Stop.") { t.Error("Error: "+err.Error()) }
 }
 
 // (1 or 0) and (0 or 1)

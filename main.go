@@ -248,29 +248,51 @@ func Validator(nodes []Node) error {
 
     // START ASSERTIONS
     // ----------
-    // if nodes[i].Token == "OP_AND" {
-    //   if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
-    //     return errors.New("And operator missing a boolean/group on the left hand side")
-    //   }
-    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-    //     return errors.New("And operator missing a boolean/group on the right hand side")
-    //   }
-    // }
-    //
-    // if nodes[i].Token == "OP_OR" {
-    //   if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
-    //     return errors.New("Or operator missing a boolean/group on the left hand side")
-    //   }
-    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-    //     return errors.New("Or operator missing a boolean/group on the right hand side")
-    //   }
-    // }
-    //
-    // if nodes[i].Token == "OP_OR" {
-    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-    //     return errors.New("Not operator missing a boolean/group on the right hand side")
-    //   }
-    // }
+    if nodes[i].Token == "OP_AND" {
+      if leftHandSide, ok := nodes[i].Data["LeftHandSide"].(Node); ok {
+        if !TokenNameIsExpression(leftHandSide.Token) {
+          return errors.New("And operator missing a boolean/group on the left hand side")
+        }
+      } else {
+        return errors.New("And operator left hand side is not a node")
+      }
+
+      if rightHandSide, ok := nodes[i].Data["RightHandSide"].(Node); ok {
+        if !TokenNameIsExpression(rightHandSide.Token) {
+          return errors.New("And operator missing a boolean/group on the right hand side")
+        }
+      } else {
+        return errors.New("And operator right hand side is not a node")
+      }
+    }
+
+    if nodes[i].Token == "OP_OR" {
+      if leftHandSide, ok := nodes[i].Data["LeftHandSide"].(Node); ok {
+        if !TokenNameIsExpression(leftHandSide.Token) {
+          return errors.New("Or operator missing a boolean/group on the left hand side")
+        }
+      } else {
+        return errors.New("Or operator left hand side is not a node")
+      }
+
+      if rightHandSide, ok := nodes[i].Data["RightHandSide"].(Node); ok {
+        if !TokenNameIsExpression(rightHandSide.Token) {
+          return errors.New("Or operator missing a boolean/group on the right hand side")
+        }
+      } else {
+        return errors.New("Or operator right hand side is not a node")
+      }
+    }
+
+    if nodes[i].Token == "OP_NOT" {
+      if rightHandSide, ok := nodes[i].Data["RightHandSide"].(Node); ok {
+        if !TokenNameIsExpression(rightHandSide.Token) {
+          return errors.New("Not operator missing a boolean/group on the right hand side")
+        }
+      } else {
+        return errors.New("Or operator right hand side is not a node")
+      }
+    }
 
 
   }
@@ -320,7 +342,6 @@ func Tokenizer(input string) (*[]Node, error) {
     for _, token := range TOKENS {
       if result := token.Match.FindStringSubmatch(string(code)); result != nil {
         // The token we looped over matched!
-
         if token.Type == SINGLE || token.Type == UNARY_OPERATOR {
           data := token.GetData(result)
 
@@ -460,16 +481,6 @@ func Tokenizer(input string) (*[]Node, error) {
           }
         }
 
-        // Verify that the children validates properly.
-        if validator := Validator(*children); validator != nil {
-          return nil, errors.New(fmt.Sprintf(
-            "Error: Validation Failed on %d:%d - %s. Stop.",
-            currentRow,
-            currentCol,
-            validator,
-          ))
-        }
-
         // Add the correct amount of offset to the current row and column to account for this token.
         for i := 0; i < len(result[0]); i++ {
           currentRow += 1
@@ -507,6 +518,16 @@ func Tokenizer(input string) (*[]Node, error) {
     ))
   }
 
+  // Also, before returning, validate the final ast.
+  if validator := Validator(*children); validator != nil {
+    return nil, errors.New(fmt.Sprintf(
+      "Error: Validation Failed on %d:%d - %s. Stop.",
+      currentRow,
+      currentCol,
+      validator,
+    ))
+  }
+
   return root, nil
 }
 
@@ -538,39 +559,8 @@ func PrintAst(tokens *[]Node, indent int, prefix string) {
 
 
 func main() {
-  result, err := Tokenizer(`(1 or ((0 or 0) and 1)) and (0 or (1 and 0))`)
+  result, err := Tokenizer(`1 or or`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0, "")
-
-  fmt.Println()
-  fmt.Println()
-
-  PrintAst(&[]Node{Node{Token: "OP_AND", Row: 25, Col: 1, Data: map[string]interface{}{
-    "LeftHandSide": Node{Token: "GROUP", Row: 1, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
-      Node{Token: "OP_OR", Row: 4, Col: 1, Data: map[string]interface{}{
-        "LeftHandSide": Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
-        "RightHandSide": Node{Token: "GROUP", Row: 7, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
-          Node{Token: "OP_AND", Row: 17, Col: 1, Data: map[string]interface{}{
-            "LeftHandSide": Node{Token: "GROUP", Row: 8, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
-              Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": false}},
-              Node{Token: "OP_OR", Row: 11, Col: 1, Data: map[string]interface{}{}},
-              Node{Token: "BOOL", Row: 14, Col: 1, Data: map[string]interface{}{"Value": false}},
-            }},
-            "RightHandSide": Node{Token: "BOOL", Row: 21, Col: 1, Data: map[string]interface{}{"Value": true}},
-          }},
-        }},
-      }},
-    }},
-    "RightHandSide": Node{Token: "GROUP", Row: 29, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
-      Node{Token: "OP_OR", Row: 32, Col: 1, Data: map[string]interface{}{
-        "LeftHandSide": Node{Token: "BOOL", Row: 30, Col: 1, Data: map[string]interface{}{"Value": false}},
-        "RightHandSide": Node{Token: "GROUP", Row: 35, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
-          Node{Token: "BOOL", Row: 36, Col: 1, Data: map[string]interface{}{"Value": true}},
-          Node{Token: "OP_AND", Row: 38, Col: 1, Data: map[string]interface{}{}},
-          Node{Token: "BOOL", Row: 42, Col: 1, Data: map[string]interface{}{"Value": false}},
-        }},
-      }},
-    }},
-  }}}, 0, "")
 }
