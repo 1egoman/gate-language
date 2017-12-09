@@ -12,9 +12,10 @@ func TestAnd(t *testing.T) {
   result, err := Tokenizer("1 and 0")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": true}},
-    Node{Token: "OP_AND", Row: 3, Col: 1, Data: NONE},
-    Node{Token: "BOOL", Row: 7, Col: 1, Data: map[string]interface{}{"Value": false}},
+    Node{Token: "OP_AND", Row: 3, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": true}},
+      "RightHandSide": Node{Token: "BOOL", Row: 7, Col: 1, Data: map[string]interface{}{"Value": false}},
+    }},
   }) {
     t.Error("Fail!")
   }
@@ -24,9 +25,10 @@ func TestOr(t *testing.T) {
   result, err := Tokenizer("0 or 1")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": false}},
-    Node{Token: "OP_OR", Row: 3, Col: 1, Data: NONE},
-    Node{Token: "BOOL", Row: 6, Col: 1, Data: map[string]interface{}{"Value": true}},
+    Node{Token: "OP_OR", Row: 3, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": false}},
+      "RightHandSide": Node{Token: "BOOL", Row: 6, Col: 1, Data: map[string]interface{}{"Value": true}},
+    }},
   }) {
     t.Error("Fail!")
   }
@@ -36,8 +38,9 @@ func TestNot(t *testing.T) {
   result, err := Tokenizer("not 1")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "OP_NOT", Row: 1, Col: 1, Data: NONE},
-    Node{Token: "BOOL", Row: 5, Col: 1, Data: map[string]interface{}{"Value": true}},
+    Node{Token: "OP_NOT", Row: 1, Col: 1, Data: map[string]interface{}{
+      "RightHandSide": Node{Token: "BOOL", Row: 5, Col: 1, Data: map[string]interface{}{"Value": true}},
+    }},
   }) {
     t.Error("Fail!")
   }
@@ -68,16 +71,19 @@ func TestGroups(t *testing.T) {
   result, err := Tokenizer("(1 or 0) and (0 or 1)")
   if err != nil { t.Error("Error: "+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "GROUP", Row: 1, Col: 1, Data: NONE, Children: &[]Node{
-      Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
-      Node{Token: "OP_OR", Row: 4, Col: 1, Data: NONE},
-      Node{Token: "BOOL", Row: 7, Col: 1, Data: map[string]interface{}{"Value": false}},
-    }},
-    Node{Token: "OP_AND", Row: 10, Col: 1, Data: NONE},
-    Node{Token: "GROUP", Row: 14, Col: 1, Data: NONE, Children: &[]Node{
-      Node{Token: "BOOL", Row: 15, Col: 1, Data: map[string]interface{}{"Value": false}},
-      Node{Token: "OP_OR", Row: 17, Col: 1, Data: NONE},
-      Node{Token: "BOOL", Row: 20, Col: 1, Data: map[string]interface{}{"Value": true}},
+    Node{Token: "OP_AND", Row: 10, Col: 1, Data: map[string]interface{}{
+      "RightHandSide": Node{Token: "GROUP", Row: 14, Col: 1, Data: NONE, Children: &[]Node{
+        Node{Token: "OP_OR", Row: 17, Col: 1, Data: map[string]interface{}{
+          "LeftHandSide": Node{Token: "BOOL", Row: 15, Col: 1, Data: map[string]interface{}{"Value": false}},
+          "RightHandSide": Node{Token: "BOOL", Row: 20, Col: 1, Data: map[string]interface{}{"Value": true}},
+        }},
+      }},
+      "LeftHandSide": Node{Token: "GROUP", Row: 1, Col: 1, Data: NONE, Children: &[]Node{
+        Node{Token: "OP_OR", Row: 4, Col: 1, Data: map[string]interface{}{
+          "LeftHandSide": Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
+          "RightHandSide": Node{Token: "BOOL", Row: 7, Col: 1, Data: map[string]interface{}{"Value": false}},
+        }},
+      }},
     }},
   }) {
     t.Error("Fail!")
@@ -89,27 +95,33 @@ func TestNestedGroups(t *testing.T) {
   result, err := Tokenizer("(1 or ((0 or 0) and 1)) and (0 or (1 and 0))")
   if err != nil { t.Error("Error: "+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "GROUP", Row: 1, Col: 1, Data: NONE, Children: &[]Node{
-      Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
-      Node{Token: "OP_OR", Row: 4, Col: 1, Data: NONE},
-      Node{Token: "GROUP", Row: 7, Col: 1, Data: NONE, Children: &[]Node{
-        Node{Token: "GROUP", Row: 8, Col: 1, Data: NONE, Children: &[]Node{
-          Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": false}},
-          Node{Token: "OP_OR", Row: 11, Col: 1, Data: NONE},
-          Node{Token: "BOOL", Row: 14, Col: 1, Data: map[string]interface{}{"Value": false}},
+    Node{Token: "OP_AND", Row: 25, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "GROUP", Row: 1, Col: 1, Data: NONE, Children: &[]Node{
+        Node{Token: "OP_OR", Row: 4, Col: 1, Data: map[string]interface{}{
+          "LeftHandSide": Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
+          "RightHandSide": Node{Token: "GROUP", Row: 7, Col: 1, Data: NONE, Children: &[]Node{
+            Node{Token: "OP_AND", Row: 17, Col: 1, Data: map[string]interface{}{
+              "LeftHandSide": Node{Token: "GROUP", Row: 8, Col: 1, Data: NONE, Children: &[]Node{
+                Node{Token: "OP_OR", Row: 11, Col: 1, Data: map[string]interface{}{
+                  "LeftHandSide": Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": false}},
+                  "RightHandSide": Node{Token: "BOOL", Row: 14, Col: 1, Data: map[string]interface{}{"Value": false}},
+                }},
+              }},
+              "RightHandSide": Node{Token: "BOOL", Row: 21, Col: 1, Data: map[string]interface{}{"Value": true}},
+            }},
+          }},
         }},
-        Node{Token: "OP_AND", Row: 17, Col: 1, Data: NONE},
-        Node{Token: "BOOL", Row: 21, Col: 1, Data: map[string]interface{}{"Value": true}},
       }},
-    }},
-    Node{Token: "OP_AND", Row: 25, Col: 1, Data: NONE},
-    Node{Token: "GROUP", Row: 29, Col: 1, Data: NONE, Children: &[]Node{
-      Node{Token: "BOOL", Row: 30, Col: 1, Data: map[string]interface{}{"Value": false}},
-      Node{Token: "OP_OR", Row: 32, Col: 1, Data: NONE},
-      Node{Token: "GROUP", Row: 35, Col: 1, Data: NONE, Children: &[]Node{
-        Node{Token: "BOOL", Row: 36, Col: 1, Data: map[string]interface{}{"Value": true}},
-        Node{Token: "OP_AND", Row: 38, Col: 1, Data: NONE},
-        Node{Token: "BOOL", Row: 42, Col: 1, Data: map[string]interface{}{"Value": false}},
+      "RightHandSide": Node{Token: "GROUP", Row: 29, Col: 1, Data: NONE, Children: &[]Node{
+        Node{Token: "OP_OR", Row: 32, Col: 1, Data: map[string]interface{}{
+          "LeftHandSide": Node{Token: "BOOL", Row: 30, Col: 1, Data: map[string]interface{}{"Value": false}},
+          "RightHandSide": Node{Token: "GROUP", Row: 35, Col: 1, Data: NONE, Children: &[]Node{
+            Node{Token: "OP_AND", Row: 38, Col: 1, Data: map[string]interface{}{
+              "LeftHandSide": Node{Token: "BOOL", Row: 36, Col: 1, Data: map[string]interface{}{"Value": true}},
+              "RightHandSide": Node{Token: "BOOL", Row: 42, Col: 1, Data: map[string]interface{}{"Value": false}},
+            }},
+          }},
+        }},
       }},
     }},
   }) {
@@ -144,9 +156,10 @@ func TestIdentifiersOr(t *testing.T) {
   result, err := Tokenizer("a or b")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "IDENTIFIER", Row: 1, Col: 1, Data: map[string]interface{}{"Value": "a"}},
-    Node{Token: "OP_OR", Row: 3, Col: 1, Data: NONE},
-    Node{Token: "IDENTIFIER", Row: 6, Col: 1, Data: map[string]interface{}{"Value": "b"}},
+    Node{Token: "OP_OR", Row: 3, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 1, Col: 1, Data: map[string]interface{}{"Value": "a"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 6, Col: 1, Data: map[string]interface{}{"Value": "b"}},
+    }},
   }) {
     t.Error("Fail!")
   }
@@ -265,18 +278,21 @@ func TestBlockWithReturn(t *testing.T) {
       Children: &[]Node{
         Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "e"}},
         Node{Token: "GROUP", Row: 13, Col: 2, Data: NONE, Children: &[]Node{
-          Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "b"}},
-          Node{Token: "OP_AND", Row: 16, Col: 2, Data: NONE},
-          Node{Token: "IDENTIFIER", Row: 20, Col: 2, Data: map[string]interface{}{"Value": "c"}},
+          Node{Token: "OP_AND", Row: 16, Col: 2, Data: map[string]interface{}{
+            "LeftHandSide": Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "b"}},
+            "RightHandSide": Node{Token: "IDENTIFIER", Row: 20, Col: 2, Data: map[string]interface{}{"Value": "c"}},
+          }},
         }},
         Node{Token: "BLOCK_RETURN", Row: 5, Col: 3, Data: NONE},
         Node{Token: "GROUP", Row: 12, Col: 3, Data: NONE, Children: &[]Node{
-          Node{Token: "IDENTIFIER", Row: 13, Col: 3, Data: map[string]interface{}{"Value": "e"}},
-          Node{Token: "OP_AND", Row: 15, Col: 3, Data: NONE},
-          Node{Token: "GROUP", Row: 19, Col: 3, Data: NONE, Children: &[]Node{
-            Node{Token: "IDENTIFIER", Row: 20, Col: 3, Data: map[string]interface{}{"Value": "c"}},
-            Node{Token: "OP_OR", Row: 22, Col: 3, Data: NONE},
-            Node{Token: "IDENTIFIER", Row: 25, Col: 3, Data: map[string]interface{}{"Value": "d"}},
+          Node{Token: "OP_AND", Row: 15, Col: 3, Data: map[string]interface{}{
+            "LeftHandSide": Node{Token: "IDENTIFIER", Row: 13, Col: 3, Data: map[string]interface{}{"Value": "e"}},
+            "RightHandSide": Node{Token: "GROUP", Row: 19, Col: 3, Data: NONE, Children: &[]Node{
+              Node{Token: "OP_OR", Row: 22, Col: 3, Data: map[string]interface{}{
+                "LeftHandSide": Node{Token: "IDENTIFIER", Row: 20, Col: 3, Data: map[string]interface{}{"Value": "c"}},
+                "RightHandSide": Node{Token: "IDENTIFIER", Row: 25, Col: 3, Data: map[string]interface{}{"Value": "d"}},
+              }},
+            }},
           }},
         }},
       },

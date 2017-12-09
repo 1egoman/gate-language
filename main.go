@@ -16,6 +16,8 @@ const (
   SINGLE TokenType = "SINGLE"
   WRAPPER_START TokenType = "WRAPPER_START"
   WRAPPER_END TokenType = "WRAPPER_END"
+  BINARY_OPERATOR = "BINARY_OPERATOR"
+  UNARY_OPERATOR = "UNARY_OPERATOR"
 )
 
 type Token struct {
@@ -27,9 +29,9 @@ type Token struct {
 }
 
 var TOKENS []Token = []Token{
-  Token{Name: "OP_AND", Type: SINGLE, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
-  Token{Name: "OP_OR", Type: SINGLE, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
-  Token{Name: "OP_NOT", Type: SINGLE, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
+  Token{Name: "OP_AND", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
+  Token{Name: "OP_OR", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
+  Token{Name: "OP_NOT", Type: UNARY_OPERATOR, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
 
   Token{
     Name: "GROUP",
@@ -177,6 +179,47 @@ type StackFrame struct {
   Nodes *[]Node
 }
 
+// These checks run on tokens before the side effects have a chance to modify them. A good example
+// of why this is helpful is to ensure that identifiers aren't reserved words - since identifiers
+// are enveloped inside of other tokens, it's helpful to check the content of the identifiers before
+// this happens.
+func PreSideEffectValidator(nodes []Node) error {
+  for i := 0; i < len(nodes); i++ {
+
+    // Check to make sure identifiers aren't reserved words.
+    if nodes[i].Token == "IDENTIFIER" {
+      // Ensure that the identifier isn't a reserved word.
+      for _, reserved := range RESERVED_WORDS {
+        if nodes[i].Data["Value"] == reserved {
+          return errors.New(fmt.Sprintf("Identifier %s is a reserved word", reserved))
+        }
+      }
+    }
+
+    // Ensure that the identifier in an assignment isn't a reserved word.
+    if nodes[i].Token == "ASSIGNMENT" {
+      for _, reserved := range RESERVED_WORDS {
+        for _, name := range strings.Split(nodes[i].Data["Names"].(string), " ") {
+          if name == reserved {
+            return errors.New(fmt.Sprintf("Identifier %s is a reserved word, and cannot be assigned to", reserved))
+          }
+        }
+      }
+    }
+
+    // Ensure that the only groups, literals, and identifiers are found after a return.
+    if nodes[i].Token == "BLOCK_RETURN" && len(nodes) > i {
+      for _, node := range nodes[i+1:] {
+        if node.Token != "BOOL" && node.Token != "GROUP" && node.Token != "IDENTIFIER" {
+          return errors.New(fmt.Sprintf("Non-expression token %s found after return", node.Token))
+        }
+      }
+    }
+  }
+
+  return nil
+}
+
 func Validator(nodes []Node) error {
   DUMMY_NODE := Node{Token: "", Data: map[string]interface{}{}, Row: -1, Col: -1}
 
@@ -205,62 +248,38 @@ func Validator(nodes []Node) error {
 
     // START ASSERTIONS
     // ----------
+    // if nodes[i].Token == "OP_AND" {
+    //   if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
+    //     return errors.New("And operator missing a boolean/group on the left hand side")
+    //   }
+    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
+    //     return errors.New("And operator missing a boolean/group on the right hand side")
+    //   }
+    // }
+    //
+    // if nodes[i].Token == "OP_OR" {
+    //   if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
+    //     return errors.New("Or operator missing a boolean/group on the left hand side")
+    //   }
+    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
+    //     return errors.New("Or operator missing a boolean/group on the right hand side")
+    //   }
+    // }
+    //
+    // if nodes[i].Token == "OP_OR" {
+    //   if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
+    //     return errors.New("Not operator missing a boolean/group on the right hand side")
+    //   }
+    // }
 
-    if nodes[i].Token == "OP_AND" {
-      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
-        return errors.New("And operator missing a boolean/group on the left hand side")
-      }
-      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-        return errors.New("And operator missing a boolean/group on the right hand side")
-      }
-    }
 
-    if nodes[i].Token == "OP_OR" {
-      if !( before[1].Token == "BOOL" || before[1].Token == "GROUP" || before[1].Token == "IDENTIFIER" ) {
-        return errors.New("Or operator missing a boolean/group on the left hand side")
-      }
-      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-        return errors.New("Or operator missing a boolean/group on the right hand side")
-      }
-    }
-
-    if nodes[i].Token == "OP_OR" {
-      if i != len(nodes)-1 && !( after[1].Token == "BOOL" || after[1].Token == "GROUP" || after[1].Token == "IDENTIFIER" ) {
-        return errors.New("Not operator missing a boolean/group on the right hand side")
-      }
-    }
-
-    if nodes[i].Token == "IDENTIFIER" {
-      // Ensure that the identifier isn't a reserved word.
-      for _, reserved := range RESERVED_WORDS {
-        if nodes[i].Data["Value"] == reserved {
-          return errors.New(fmt.Sprintf("Identifier %s is a reserved word", reserved))
-        }
-      }
-    }
-
-    if nodes[i].Token == "ASSIGNMENT" {
-      // Ensure that the identifier isn't a reserved word.
-      for _, reserved := range RESERVED_WORDS {
-        for _, name := range strings.Split(nodes[i].Data["Names"].(string), " ") {
-          if name == reserved {
-            return errors.New(fmt.Sprintf("Identifier %s is a reserved word, and cannot be assigned to", reserved))
-          }
-        }
-      }
-    }
-
-    if nodes[i].Token == "BLOCK_RETURN" && len(nodes) > i {
-      // Ensure that the only groups, literals, and identifiers are found after a return.
-      for _, node := range nodes[i+1:] {
-        if node.Token != "BOOL" && node.Token != "GROUP" && node.Token != "IDENTIFIER" {
-          return errors.New(fmt.Sprintf("Non-expression token %s found after return", node.Token))
-        }
-      }
-    }
   }
 
   return nil
+}
+
+func TokenNameIsExpression(name string) bool {
+  return name == "BOOL" || name == "IDENTIFIER" || name == "GROUP"
 }
 
 func Tokenizer(input string) (*[]Node, error) {
@@ -302,13 +321,51 @@ func Tokenizer(input string) (*[]Node, error) {
       if result := token.Match.FindStringSubmatch(string(code)); result != nil {
         // The token we looped over matched!
 
-        if token.Type == SINGLE {
+        if token.Type == SINGLE || token.Type == UNARY_OPERATOR {
+          data := token.GetData(result)
+
+          // Add a right hand side value for every unary operator.
+          if token.Type == UNARY_OPERATOR {
+            data["RightHandSide"] = nil
+          }
+
           // Single tokens are standalone - append token to the pointer that `children` points to.
           *children = append(*children, Node{
             Token: token.Name,
             Row: currentRow,
             Col: currentCol,
-            Data: token.GetData(result),
+            Data: data,
+            Children: nil,
+          })
+        } else if token.Type == BINARY_OPERATOR {
+          // A binary operator takes one argument before it, and one argument after it.
+
+          // Verify there is an expression token before the operator.
+          if !(
+            len(*children) > 0 &&
+            TokenNameIsExpression((*children)[len(*children) - 1].Token)) {
+            return nil, errors.New(fmt.Sprintf(
+              "Error: Attempted to parse a binary operator (%s), but there wasn't a valid expression before the operator on line %d:%d. Stop.",
+              result,
+              currentRow,
+              currentCol,
+            ))
+          }
+
+          // Get left hand side
+          childrenValue := *children
+          leftHandSide := childrenValue[len(childrenValue) - 1]
+          *children = childrenValue[:len(childrenValue) - 1]
+
+          data := token.GetData(result)
+          data["LeftHandSide"] = leftHandSide
+          data["RightHandSide"] = nil
+
+          *children = append(*children, Node{
+            Token: token.Name,
+            Row: currentRow,
+            Col: currentCol,
+            Data: data,
             Children: nil,
           })
         } else if token.Type == WRAPPER_START {
@@ -368,9 +425,39 @@ func Tokenizer(input string) (*[]Node, error) {
           stacks = stacks[:len(stacks) - 1]
         }
 
+        // Run the pre-side-effect validation checks.
+        if validator := PreSideEffectValidator(*children); validator != nil {
+          return nil, errors.New(fmt.Sprintf(
+            "Error: Validation Failed on %d:%d - %s. Stop.",
+            currentRow,
+            currentCol,
+            validator,
+          ))
+        }
+
         // Run any custom side effects
         if token.SideEffect != nil {
           token.SideEffect(result, &stacks[len(stacks)-1])
+        }
+
+        // If the token we just added to children is an expression, and the previous token is a
+        // unary or binary operator, add the token we just added in the right hand side of the
+        // previous token.
+        if len(*children) >= 2 && TokenNameIsExpression((*children)[len(*children)-1].Token) {
+          if _, ok := (*children)[len(*children) - 2].Data["RightHandSide"]; ok {
+
+            // Get right hand side - the last toke in the list
+            childrenValue := *children
+            rightHandSide := childrenValue[len(*children) - 1]
+
+            // Get the operator - the second to last token in the list
+            operator := childrenValue[len(childrenValue) - 2]
+
+            *children = childrenValue[:len(childrenValue) - 2]
+
+            operator.Data["RightHandSide"] = rightHandSide
+            *children = append(*children, operator)
+          }
         }
 
         // Verify that the children validates properly.
@@ -423,364 +510,67 @@ func Tokenizer(input string) (*[]Node, error) {
   return root, nil
 }
 
-func PrintAst(tokens *[]Node, indent int) {
+func PrintAst(tokens *[]Node, indent int, prefix string) {
   if tokens == nil {
-    for i := 0; i < indent; i++ { fmt.Printf(" ") }
+    for i := 0; i < indent; i++ { fmt.Printf("  ") }
+    if len(prefix) > 0 { fmt.Printf("%s:", prefix); }
     fmt.Printf("<nil>\n")
     return
   }
 
   for _, token := range *tokens {
-    for i := 0; i < indent; i++ { fmt.Printf(" ") }
+    for i := 0; i < indent; i++ { fmt.Printf("  ") }
+    if len(prefix) > 0 { fmt.Printf("%s:", prefix); }
     fmt.Printf("%+v\n", token)
 
     if token.Children != nil {
-      PrintAst(token.Children, indent + 1)
+      PrintAst(token.Children, indent + 1, "")
+    }
+
+    if value, ok := token.Data["LeftHandSide"].(Node); ok {
+      PrintAst(&[]Node{value}, indent + 1, "LHS")
+    }
+    if value, ok := token.Data["RightHandSide"].(Node); ok {
+      PrintAst(&[]Node{value}, indent + 1, "RHS")
     }
   }
 }
-
-
-type InterpreterVariable struct {
-  Name string
-  Value bool
-}
-
-type InterpreterBlock struct {
-  Name string
-  Inputs []string
-  OutputQuantity int
-}
-
-type InterpreterFrame struct {
-  Variables *[]InterpreterVariable
-  Blocks *[]InterpreterBlock
-}
-
-func NodeIsExpression(node *Node) bool {
-  if node != nil {
-    return node.Token == "BOOL" || node.Token == "GROUP" || node.Token == "IDENTIFIER"
-  } else {
-    return false
-  }
-}
-
-func PrintFrames(frames *[]InterpreterFrame) {
-  for ct, frame := range *frames {
-    fmt.Printf("Frame %d (%d vars)", ct, len(*(frame.Variables)))
-    for _, variable := range *(frame.Variables) {
-      fmt.Printf("|- let %s = %s", variable.Name, variable.Value)
-    }
-    fmt.Println()
-  }
-}
-
-func Interpreter(tok *[]Node, frames *[]InterpreterFrame) (*[]bool, error) {
-  if tok == nil { return nil, nil }
-  nodes := *tok
-
-  // Add a new stack frame by reference
-  *frames = append(*frames, InterpreterFrame{
-    Variables: &[]InterpreterVariable{},
-    Blocks: &[]InterpreterBlock{},
-  })
-
-  returnValues := &[]bool{}
-
-  for _, operation := range []string{
-    "PROCESS_ASSIGNMENTS",
-    "RESOLVE_IDENTIFIERS",
-    "FLATTEN_GROUPS",
-    "EVALUATE",
-  } {
-    switch (operation) {
-
-    case "PROCESS_ASSIGNMENTS":
-      nodesLength := len(nodes)
-      for index := 0; index < nodesLength; index++ {
-        if nodes[index].Token == "ASSIGNMENT" {
-          assignmentNames := strings.Split(nodes[index].Data["Names"].(string), " ")
-
-          // Ensure there are enough tokens after the assignment to perform it properly, and that
-          // these tokens are expressions.
-          // Loop from (index + 1) ==> (index + 1) + len(assignmentNames)
-          for i := index + 1; i < index + 1 + len(assignmentNames); i++ {
-            if i > (len(nodes) - 1) {
-              return nil, errors.New(fmt.Sprintf(
-                "There aren't %d tokens after assignment at %d:%d - only found %d. Please add more expressions to make this assignment valid. Most likely this is because the assignment is the last token?",
-                len(assignmentNames),
-                nodes[index].Row,
-                nodes[index].Col,
-                i - (index + 1),
-              ))
-            }
-            // Ensure the nodes after the assignment are expressions.
-            if NodeIsExpression(&nodes[i]) == false {
-              return nil, errors.New(fmt.Sprintf(
-                "There aren't %d expression tokens after assignment at %d:%d - only found %d. Please add more expressions to make this assignment valid.",
-                len(assignmentNames),
-                nodes[index].Row,
-                nodes[index].Col,
-                i - (index + 1),
-              ))
-            }
-          }
-
-          // Get the values to assign to each expression
-          // Note the above is safe because of the above checks.
-          assignmentValues := nodes[index+1:index+1+len(assignmentNames)]
-
-          // Add a new stack frame by reference
-          *frames = append(*frames, InterpreterFrame{
-            Variables: &[]InterpreterVariable{},
-            Blocks: &[]InterpreterBlock{},
-          })
-
-          // Evaluate each expression that is to be assigned.
-          results, err := Interpreter(&assignmentValues, frames)
-          if err != nil { return nil, err }
-          if results == nil {
-            // Should never happen.
-            return nil, errors.New("Interpreter returned nil when trying to assign")
-          }
-          assignmentValuesResults := *results
-
-          // Remove last frame
-          frameValue := *frames
-          newFrames := frameValue[:len(frameValue)-1]
-          *frames = newFrames
-
-          if len(assignmentNames) != len(assignmentValuesResults) {
-            return nil, errors.New(fmt.Sprintf(
-              "The number of values assigned to in the assignment at %d:%d does not equal the number of values received from evaluating the right hand side (%d != %d)",
-              nodes[index].Row,
-              nodes[index].Col,
-              len(assignmentNames),
-              len(assignmentValuesResults),
-            ))
-          }
-
-          // Actually do the assignment!
-          for i := 0; i < len(assignmentNames); i++ {
-            name := assignmentNames[i]
-            value := assignmentValuesResults[i]
-
-            // Ensure that the variable hasn't been assigned before.
-            framesValue := *frames
-            currentFrame := framesValue[len(framesValue) - 1]
-            for _, variable := range *(currentFrame.Variables) {
-              if variable.Name == name {
-                return nil, errors.New(fmt.Sprintf(
-                  "Cannot assign variable %s at %d:%d - variable already defined!",
-                  name,
-                  nodes[index].Row,
-                  nodes[index].Col,
-                ))
-              }
-            }
-
-            *currentFrame.Variables = append(*currentFrame.Variables, InterpreterVariable{
-              Name: name,
-              Value: value,
-            })
-          }
-
-          // Finally, delete the node and the expresisons afterwards that were used when
-          // accomplishing the assignment from the node list. It's done its job.
-          fmt.Println("------", index)
-          nodes = append(nodes[:index], nodes[index+len(assignmentNames):]...)
-          PrintAst(&nodes, 0)
-        }
-      }
-
-    case "RESOLVE_IDENTIFIERS":
-      for index := 0; index < len(nodes); index++ {
-        if nodes[index].Token == "IDENTIFIER" {
-          identifierName := nodes[index].Data["Value"].(string)
-
-          framesValue := *frames
-
-          // Look up identifier, starting at the most recent frame and working our way back up.
-          var valueOfVariable *bool = nil
-          FrameLoop:
-          for i := len(framesValue) - 1; i >= 0; i-- {
-            frame := framesValue[i]
-            for _, variable := range *(frame.Variables) {
-              if variable.Name == identifierName {
-                // Found the variable!
-                valueOfVariable = &variable.Value
-                break FrameLoop;
-              }
-            }
-          }
-
-          // Ensure that the variable was found.
-          if valueOfVariable == nil {
-            return nil, errors.New(fmt.Sprintf(
-              "No such variable `%s` (located at %d:%d) was defined.",
-              identifierName,
-              nodes[index].Row,
-              nodes[index].Col,
-            ))
-          }
-
-          // If it was found, replace the identifier token with a `BOOL` token.
-          nodes[index].Token = "BOOL"
-          nodes[index].Data["Value"] = *valueOfVariable
-        }
-      }
-
-    case "FLATTEN_GROUPS":
-      for index := 0; index < len(nodes); index++ {
-        // Interpret the contents of the group, and replace the group with its result.
-        if nodes[index].Token == "GROUP" {
-          result, err := Interpreter(nodes[index].Children, frames)
-          if err != nil {
-            return nil, err
-          }
-
-          if result == nil {
-            return nil, errors.New(fmt.Sprintf(
-              "Result of interpreting group at %d:%d was nil.",
-              nodes[index].Row,
-              nodes[index].Col,
-            ))
-          }
-
-          // Repalce the group with it's result.
-          if len(*result) == 1 {
-            // Replace the group with a `BOOL` token.
-            nodes[index].Token = "BOOL"
-            nodes[index].Data["Value"] = (*result)[0]
-          } else {
-            return nil, errors.New(fmt.Sprintf(
-              "Result of interpreting group at %d:%d was not one value (was %d values)!",
-              nodes[index].Row,
-              nodes[index].Col,
-              len(*result),
-            ))
-          }
-        }
-      }
-
-    case "EVALUATE":
-      DUMMY_NODE := Node{Token: "", Data: map[string]interface{}{}, Row: -1, Col: -1}
-      for index := 0; index < len(nodes); index++ {
-        switch (nodes[index].Token) {
-        case "OP_AND": fallthrough
-        case "OP_OR":
-          // Ensure the operation has operands on both sides.
-          if index == 0 {
-            return nil, errors.New(fmt.Sprintf(
-              "%s at %d:%d missing a left hand side!",
-              nodes[index].Token,
-              nodes[index].Row,
-              nodes[index].Col,
-            ))
-          }
-          if index == len(nodes) - 1 {
-            return nil, errors.New(fmt.Sprintf(
-              "%s at %d:%d missing a right hand side!",
-              nodes[index].Token,
-              nodes[index].Row,
-              nodes[index].Col,
-            ))
-          }
-
-          leftHandSide := nodes[index - 1]
-          if leftHandSide.Token != "BOOL" {
-            return nil, errors.New(fmt.Sprintf(
-              "Left hand side of %sat %d:%d is of invalid type: %s",
-              nodes[index].Token,
-              nodes[index].Row,
-              nodes[index].Col,
-              leftHandSide.Token,
-            ))
-          }
-
-          rightHandSide := nodes[index + 1]
-          if rightHandSide.Token != "BOOL" {
-            return nil, errors.New(fmt.Sprintf(
-              "Right hand side of %s at %d:%d is of invalid type: %s",
-              nodes[index].Token,
-              nodes[index].Row,
-              nodes[index].Col,
-              rightHandSide.Token,
-            ))
-          }
-
-          // Evaluate the operation, and add to the return values
-          var resultOfOperation bool
-          fmt.Println(leftHandSide.Data["Value"])
-          if nodes[index].Token == "OP_AND" {
-            resultOfOperation = leftHandSide.Data["Value"].(bool) && rightHandSide.Data["Value"].(bool)
-          } else if nodes[index].Token == "OP_OR" {
-            resultOfOperation = leftHandSide.Data["Value"].(bool) || rightHandSide.Data["Value"].(bool)
-          } else {
-            return nil, errors.New(fmt.Sprintf(
-              "Invalid operation was passed to interpreter at %d:%d",
-              nodes[index].Token,
-              nodes[index].Row,
-              nodes[index].Col,
-            ))
-          }
-          fmt.Println("RETURN 1", resultOfOperation)
-          *returnValues = append(*returnValues, resultOfOperation)
-
-          // Remove the nodes surrounding the and gate, and replace the and gate with a dummy node
-          // to mark that it has already been handled.
-          nodes = append(append(nodes[:index - 1], DUMMY_NODE), nodes[index + 2:]...)
-
-        // Don't handle a bool here - these might be arguments to other language constructs. Bools
-        // that haven't been used by other operators will get used at the end.
-        case "BOOL":
-          break
-        }
-      }
-
-      // Once complete, add any booleans that weren't used by other expressions into the result
-      // array at the right locations.
-      insertLocation := 0
-      PrintAst(&nodes, 0)
-      for index := 0; index < len(nodes); index++ {
-        if nodes[index].Token == "BOOL" {
-          *returnValues = append(*returnValues, nodes[index].Data["Value"].(bool))
-        } else if nodes[index].Token == DUMMY_NODE.Token {
-          insertLocation += 1
-        }
-      }
-
-    default:
-      break;
-    }
-  }
-
-  // Remove last stack frame
-  frameValue := *frames
-  newFrames := frameValue[:len(frameValue)-1]
-  *frames = newFrames
-
-  return returnValues, nil
-}
-
-
-
-
-
 
 
 func main() {
-  result, err := Tokenizer(`
-  let a = 0
-  1 or a`)
+  result, err := Tokenizer(`(1 or ((0 or 0) and 1)) and (0 or (1 and 0))`)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
-  PrintAst(result, 0)
-  fmt.Println("=========")
+  PrintAst(result, 0, "")
 
-  // result, _ := Tokenizer(`let a b c = 1 0`)
-  frames := []InterpreterFrame{}
-  result2, err2 := Interpreter(result, &frames)
-  fmt.Println("Error: ", err2)
-  fmt.Println("Result: ", result2)
+  fmt.Println()
+  fmt.Println()
+
+  PrintAst(&[]Node{Node{Token: "OP_AND", Row: 25, Col: 1, Data: map[string]interface{}{
+    "LeftHandSide": Node{Token: "GROUP", Row: 1, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
+      Node{Token: "OP_OR", Row: 4, Col: 1, Data: map[string]interface{}{
+        "LeftHandSide": Node{Token: "BOOL", Row: 2, Col: 1, Data: map[string]interface{}{"Value": true}},
+        "RightHandSide": Node{Token: "GROUP", Row: 7, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
+          Node{Token: "OP_AND", Row: 17, Col: 1, Data: map[string]interface{}{
+            "LeftHandSide": Node{Token: "GROUP", Row: 8, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
+              Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": false}},
+              Node{Token: "OP_OR", Row: 11, Col: 1, Data: map[string]interface{}{}},
+              Node{Token: "BOOL", Row: 14, Col: 1, Data: map[string]interface{}{"Value": false}},
+            }},
+            "RightHandSide": Node{Token: "BOOL", Row: 21, Col: 1, Data: map[string]interface{}{"Value": true}},
+          }},
+        }},
+      }},
+    }},
+    "RightHandSide": Node{Token: "GROUP", Row: 29, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
+      Node{Token: "OP_OR", Row: 32, Col: 1, Data: map[string]interface{}{
+        "LeftHandSide": Node{Token: "BOOL", Row: 30, Col: 1, Data: map[string]interface{}{"Value": false}},
+        "RightHandSide": Node{Token: "GROUP", Row: 35, Col: 1, Data: map[string]interface{}{}, Children: &[]Node{
+          Node{Token: "BOOL", Row: 36, Col: 1, Data: map[string]interface{}{"Value": true}},
+          Node{Token: "OP_AND", Row: 38, Col: 1, Data: map[string]interface{}{}},
+          Node{Token: "BOOL", Row: 42, Col: 1, Data: map[string]interface{}{"Value": false}},
+        }},
+      }},
+    }},
+  }}}, 0, "")
 }
