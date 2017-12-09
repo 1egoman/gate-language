@@ -293,8 +293,6 @@ func Validator(nodes []Node) error {
         return errors.New("Or operator right hand side is not a node")
       }
     }
-
-
   }
 
   return nil
@@ -323,7 +321,7 @@ func Tokenizer(input string) (*[]Node, error) {
 
   Outer:
   for len(code) > 0 {
-    // Trim whitespace frm the start of the code
+    // Trim whitespace from the start of the code
     codeLength := len(code)
     for i := 0; i < codeLength; i++ {
       if code[0] == ' ' || code[0] == '\t' {
@@ -336,6 +334,13 @@ func Tokenizer(input string) (*[]Node, error) {
       } else {
         break;
       }
+    }
+
+    // Check to make sure that there are characters to match against below in the token matching
+    // code. If code = " " going into outer while loop, then the whitespace will be removed but the
+    // empty string will still attempt to be matched upon - this will result in failure.
+    if len(code) == 0 {
+      break
     }
 
     // Try to find a matching token.
@@ -559,7 +564,10 @@ func PrintAst(tokens *[]Node, indent int, prefix string) {
 
 
 func main() {
-  result, err := Tokenizer(`1 or or`)
+  result, err := Tokenizer(`
+  let a = 1
+  a
+  `)
   fmt.Println("Error: ", err)
   fmt.Println("Results:")
   PrintAst(result, 0, "")

@@ -46,6 +46,20 @@ func TestNot(t *testing.T) {
   }
 }
 
+func TestWhitespaceAtEnd(t *testing.T) {
+  result, err := Tokenizer(`1 and 0
+  `)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "OP_AND", Row: 3, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": true}},
+      "RightHandSide": Node{Token: "BOOL", Row: 7, Col: 1, Data: map[string]interface{}{"Value": false}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // 1 and and => error
 func TestAndValidatorWithBooleans(t *testing.T) {
   _, err := Tokenizer("1 and and")
