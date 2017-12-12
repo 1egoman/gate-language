@@ -19,7 +19,26 @@ func main() {
   stack := []*StackFrame{
     &StackFrame{
       Variables: []*Variable{
-        &Variable{Name: "a", Value: &Wire{Id: 0, Desc: "Variable a"}},
+        // &Variable{Name: "a", Value: &Wire{Id: -1, Desc: "Variable a"}},
+      },
+      Blocks: []*Block{
+        &Block{
+          Name: "foo",
+          Content: &Node{
+            Token: "BLOCK",
+            Data: map[string]interface{}{
+              "Name": "foo",
+              "Params": "a",
+              "InputQuantity": 1,
+              "OutputQuantity": 2,
+            },
+            Children: &[]Node{
+              Node{Token: "BLOCK_RETURN"},
+              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+            },
+          },
+        },
       },
     },
   }
@@ -29,9 +48,20 @@ func main() {
     return
   }
 
-  for _, input := range *result {
-    fmt.Println(">", input)
-    gates, wires, outputs, err := Parse(&input, stack)
+  var allGates []*Gate
+  var allWires []*Wire
+  var finalOutputs []*Wire
+
+  resultValues := *result
+
+  for len(resultValues) > 0 {
+    fmt.Println("==========>", resultValues)
+    gates, wires, outputs, err := Parse(&resultValues, stack)
+
+    allGates = append(allGates, gates...)
+    allWires = append(allWires, wires...)
+    finalOutputs = outputs
+
     if err != nil {
       fmt.Printf("Error %s", err)
       return
@@ -68,5 +98,7 @@ func main() {
     }
     fmt.Println("===")
   }
+
+  fmt.Println("FINAL OUTPUTS", finalOutputs)
 }
 

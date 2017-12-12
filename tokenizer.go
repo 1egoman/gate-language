@@ -145,6 +145,7 @@ var TOKENS []Token = []Token{
     GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{
         "Names": match[1],
+        "Values": []Node{},
       };
     },
   },
@@ -188,7 +189,6 @@ type TokenizerFrame struct {
 // this happens.
 func PreSideEffectValidator(nodes []Node) error {
   for i := 0; i < len(nodes); i++ {
-
     // Check to make sure identifiers aren't reserved words.
     if nodes[i].Token == "IDENTIFIER" {
       // Ensure that the identifier isn't a reserved word.
