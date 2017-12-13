@@ -38,6 +38,7 @@ type Variable struct {
 type Block struct {
   Name string
   Content *Node
+  InvocationCount int
 }
 
 type StackFrame struct {
@@ -192,10 +193,10 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     *inputs = (*inputs)[1:]
 
   case "ASSIGNMENT":
-    fmt.Printf("/ Assigning! Token = %+v\n", input)
+    // fmt.Printf("/ Assigning! Token = %+v\n", input)
     if names, ok := input.Data["Names"].(string); ok {
       numberOfLhsValues := len(strings.Split(names, " "))
-      fmt.Printf("  * assignment takes %d parameters\n", numberOfLhsValues)
+      // fmt.Printf("  * assignment takes %d parameters\n", numberOfLhsValues)
 
       // First, extract all the tokens after the assignment (rhs) that are assigned to the variabled
       // inside of the assignment (lhs).
@@ -214,7 +215,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
         // Get the token after the current token
         parameter := (*inputs)[1]
-        fmt.Printf("  * found new param on rhs: %+v\n", parameter)
+        // fmt.Printf("  * found new param on rhs: %+v\n", parameter)
 
         // Verify that the token is of the proper type.
         if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
@@ -236,11 +237,11 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         if err != nil {
           return nil, nil, nil, err
         }
-        fmt.Printf("  * executed param successfully... %d results.\n", len(paramOutputs))
+        // fmt.Printf("  * executed param successfully... %d results.\n", len(paramOutputs))
 
         // Ensure that the parameter, when evaluated, returns outputs.
         if len(paramOutputs) == 0 {
-          fmt.Printf("PARAM %+v %+v %+v\n", parameter, paramGates, paramWires)
+          // fmt.Printf("PARAM %+v %+v %+v\n", parameter, paramGates, paramWires)
           return nil, nil, nil, errors.New(fmt.Sprintf(
             "Parameter to assignment (assignment located at %d:%d, parameter located at %d:%d) outputted no values after being evaluated, please remove from assignment. Stop.\n",
             input.Row,
@@ -276,7 +277,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
       // Remove token that was just parsed.
       *inputs = (*inputs)[1:]
-      fmt.Println("Tokens left:", inputs)
+      // fmt.Println("Tokens left:", inputs)
     } else {
       return nil, nil, nil, errors.New(fmt.Sprintf(
         "The name within the assignment at %d:%d isn't a valid string - got %s. Stop.\n",
@@ -311,7 +312,10 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         ))
       }
 
-      fmt.Println("/ Invoking block: ", block)
+      // fmt.Println("/ Invoking block: ", block)
+
+      // Increment the invocation count for the block
+      block.InvocationCount += 1
 
       // For each parameter passed into the invocation, execute it and get a reference to it to link
       // to each value that is in the context of the invocation.
@@ -343,7 +347,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           // Create a new block input gate to express that we're entering a block.
           gates = append(gates, &Gate{
             Type: BLOCK_INPUT,
-            Label: fmt.Sprintf("Input %d into block %s invocation", ct, block.Name),
+            Label: fmt.Sprintf("Input %d into block %s invocation %d", ct, block.Name, block.InvocationCount),
             Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
             Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
           })
@@ -358,7 +362,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
       var deref_vars []Variable
       for _, v := range vars { deref_vars = append(deref_vars, *v) }
-      fmt.Printf("  * Created variables to inject into scope: %+v\n", deref_vars)
+      // fmt.Printf("  * Created variables to inject into scope: %+v\n", deref_vars)
 
       // Add a temporary item to the top of the stack for the invocation, defining all the variables
       // that were passed in as parameters as defines in the new stack frame. Also, add a new block
@@ -396,7 +400,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         // `BLOCK_OUTPUT` node, and put the output wire of that `BLOCK_OUTPUT` node in the outputs
         // for this action.
         if headToken == "BLOCK_RETURN" {
-          fmt.Println("  * block has return!")
+          // fmt.Println("  * block has return!")
           for ct, output := range invocationResultOutputs {
             // Create a wire to join between the block output node and the bound variable
             wireId += 1
@@ -406,7 +410,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
             // Create a new block output gate to express that we're entering a block.
             gates = append(gates, &Gate{
               Type: BLOCK_OUTPUT,
-              Label: fmt.Sprintf("Output %d from block %s invocation", ct, block.Name),
+              Label: fmt.Sprintf("Output %d from block %s invocation %d", ct, block.Name, block.InvocationCount),
               Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
               Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
             })
@@ -418,7 +422,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       }
 
 
-      fmt.Println("\\ Done Invoking block: ", block)
+      // fmt.Println("\\ Done Invoking block: ", block)
       // Remove token that was just parsed.
       *inputs = (*inputs)[:len(*inputs) - 1]
     }
