@@ -22,23 +22,28 @@ func main() {
         // &Variable{Name: "a", Value: &Wire{Id: -1, Desc: "Variable a"}},
       },
       Blocks: []*Block{
-        &Block{
-          Name: "foo",
-          Content: &Node{
-            Token: "BLOCK",
-            Data: map[string]interface{}{
-              "Name": "foo",
-              "Params": "a",
-              "InputQuantity": 1,
-              "OutputQuantity": 2,
-            },
-            Children: &[]Node{
-              Node{Token: "BLOCK_RETURN"},
-              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
-              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
-            },
-          },
-        },
+        // &Block{
+        //   Name: "foo",
+        //   Content: &Node{
+        //     Token: "BLOCK",
+        //     Data: map[string]interface{}{
+        //       "Name": "foo",
+        //       "Params": "a",
+        //       "InputQuantity": 1,
+        //       "OutputQuantity": 2,
+        //     },
+        //     Children: &[]Node{
+        //       Node{Token: "BLOCK_RETURN"},
+        //       Node{Token: "GROUP", Row: 13, Col: 2, Data: map[string]interface{}{}, Children: &[]Node{
+        //         Node{Token: "OP_AND", Row: 16, Col: 2, Data: map[string]interface{}{
+        //           "LeftHandSide": Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "a"}},
+        //           "RightHandSide": Node{Token: "IDENTIFIER", Row: 20, Col: 2, Data: map[string]interface{}{"Value": "a"}},
+        //         }},
+        //       }},
+        //       Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+        //     },
+        //   },
+        // },
       },
     },
   }
@@ -82,6 +87,8 @@ func main() {
         fmt.Printf(" %+v", output)
       }
       fmt.Printf(")")
+
+      fmt.Printf(` "%s"`, gate.Label)
       fmt.Printf("\n")
     }
     fmt.Println("===")

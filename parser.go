@@ -19,6 +19,8 @@ const (
   NOT = "NOT"
   SOURCE = "SOURCE"
   GROUND = "GROUND"
+  BLOCK_INPUT = "BLOCK_INPUT"
+  BLOCK_OUTPUT = "BLOCK_OUTPUT"
 )
 
 type Gate struct {
@@ -74,14 +76,16 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // only operate on a single value)
       if len(outputs) > 1 {
         return nil, nil, nil, errors.New(fmt.Sprintf(
-          "Left hand side of and gate at %d:%d outputs multiple values in a single value context. Stop.",
+          "Left hand side of %s gate at %d:%d outputs multiple values in a single value context. Stop.",
+          input.Token,
           input.Row,
           input.Col,
         ))
       }
       if len(outputs) == 0 {
         return nil, nil, nil, errors.New(fmt.Sprintf(
-          "Left hand side of and gate at %d:%d outputs zero values in a single value context. Stop.",
+          "Left hand side of %s gate at %d:%d outputs zero values in a single value context. Stop.",
+          input.Token,
           input.Row,
           input.Col,
         ))
@@ -139,8 +143,56 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     // Remove token that was just parsed.
     *inputs = (*inputs)[1:]
 
+  case "OP_NOT":
+    var rhsOutput *Wire
+    // Parse the right hand side of the gate.
+    if rhs, ok := input.Data["RightHandSide"].(Node); ok {
+      rhsGates, rhsWires, outputs, err := Parse(&[]Node{rhs}, stack)
+      if err != nil {
+        return nil, nil, nil, err
+      }
+
+      // Ensure that thre is only one output from the thing on the left hand side (an and gate can
+      // only operate on a single value)
+      if len(outputs) > 1 {
+        return nil, nil, nil, errors.New(fmt.Sprintf(
+          "Right hand side of a not gate at %d:%d outputs multiple values in a single value context. Stop.",
+          input.Row,
+          input.Col,
+        ))
+      }
+      if len(outputs) == 0 {
+        return nil, nil, nil, errors.New(fmt.Sprintf(
+          "Right hand side of not gate at %d:%d outputs zero values in a single value context. Stop.",
+          input.Row,
+          input.Col,
+        ))
+      }
+      rhsOutput = outputs[0]
+
+      // Merge all gates from the left hand side with the current gate tree.
+      gates = append(gates, rhsGates...)
+      wires = append(wires, rhsWires...)
+    }
+
+    // Add a new wire as output
+    wireId += 1
+    wire := &Wire{ Id: wireId }
+    wires = append(wires, wire)
+    outputs = append(outputs, wire)
+
+    // Create the gate, using the wire we just created as the single output of the and gate.
+    gates = append(gates, &Gate{
+      Type: NOT,
+      Inputs: append([]*Wire{}, rhsOutput),
+      Outputs: []*Wire{ wire },
+    })
+
+    // Remove token that was just parsed.
+    *inputs = (*inputs)[1:]
+
   case "ASSIGNMENT":
-    fmt.Printf("> Assigning! Token = %+v\n", input)
+    fmt.Printf("/ Assigning! Token = %+v\n", input)
     if names, ok := input.Data["Names"].(string); ok {
       numberOfLhsValues := len(strings.Split(names, " "))
       fmt.Printf("  * assignment takes %d parameters\n", numberOfLhsValues)
@@ -149,9 +201,33 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // inside of the assignment (lhs).
       var rhsValues []*Wire
       for len(rhsValues) < numberOfLhsValues {
+        // Ensure that the there are still tokens to pull from
+        if len(*inputs) <= 1 {
+          return nil, nil, nil, errors.New(fmt.Sprintf(
+            "Assignment at %d:%d has more variables on the left hand side (%d) than tokens on the right hand side to assign (%d). Stop.",
+            input.Row,
+            input.Col,
+            numberOfLhsValues,
+            len(rhsValues),
+          ))
+        }
+
         // Get the token after the current token
         parameter := (*inputs)[1]
         fmt.Printf("  * found new param on rhs: %+v\n", parameter)
+
+        // Verify that the token is of the proper type.
+        if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
+          return nil, nil, nil, errors.New(fmt.Sprintf(
+            "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.",
+            input.Row,
+            input.Col,
+            parameter.Row,
+            parameter.Col,
+            strings.Split(names, " ")[len(rhsValues)],
+            parameter.Token,
+          ))
+        }
 
         // Execute it
         paramGates, paramWires, paramOutputs, err := Parse(&[]Node{parameter}, stack)
@@ -164,6 +240,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
         // Ensure that the parameter, when evaluated, returns outputs.
         if len(paramOutputs) == 0 {
+          fmt.Printf("PARAM %+v %+v %+v\n", parameter, paramGates, paramWires)
           return nil, nil, nil, errors.New(fmt.Sprintf(
             "Parameter to assignment (assignment located at %d:%d, parameter located at %d:%d) outputted no values after being evaluated, please remove from assignment. Stop.\n",
             input.Row,
@@ -234,12 +311,12 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         ))
       }
 
-      fmt.Println("> Invoking block: ", block)
+      fmt.Println("/ Invoking block: ", block)
 
       // For each parameter passed into the invocation, execute it and get a reference to it to link
       // to each value that is in the context of the invocation.
       var vars []*Variable
-      for _, child := range *input.Children {
+      for ct, child := range *input.Children {
         // Execute each parameter passed into the invocation to get an output wire to its result.
         paramGates, paramWires, paramOutputs, err := Parse(&[]Node{child}, stack)
 
@@ -248,21 +325,40 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           return nil, nil, nil, err
         }
 
-        // Add gates and generated to master colelctions.
+        // Add gates and generated to master collections.
         gates = append(gates, paramGates...)
         wires = append(wires, paramWires...)
 
         // But add each output from invoking into the variables slice to use to perform the actual
-        // invocation.
+        // invocation, joining through a special type of gate called "BLOCK_INPUT" to denote that
+        // we're entering a block.
         for _, output := range paramOutputs {
           numberOfVars := len(vars) - 1
+
+          // Create a wire to join between the block input node and the bound variable
+          wireId += 1
+          wire := &Wire{ Id: wireId }
+          wires = append(wires, wire)
+
+          // Create a new block input gate to express that we're entering a block.
+          gates = append(gates, &Gate{
+            Type: BLOCK_INPUT,
+            Label: fmt.Sprintf("Input %d into block %s invocation", ct, block.Name),
+            Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
+            Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
+          })
+
           vars = append(vars, &Variable{
             // Name: fmt.Sprintf("__value_%d_passed_into_%s", ct, block.Name),
             Name: strings.Split(block.Content.Data["Params"].(string), " ")[numberOfVars+1],
-            Value: output,
+            Value: wire,
           })
         }
       }
+
+      var deref_vars []Variable
+      for _, v := range vars { deref_vars = append(deref_vars, *v) }
+      fmt.Printf("  * Created variables to inject into scope: %+v\n", deref_vars)
 
       // Add a temporary item to the top of the stack for the invocation, defining all the variables
       // that were passed in as parameters as defines in the new stack frame. Also, add a new block
@@ -275,12 +371,16 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         },
       })
 
+      // Make a copy of the children within the block so that they can be destructively mutated
+      // by the parser without changing the actual contents of the block.
+      blockChildren := *block.Content.Children
+
       // Execute the invocation
-      for len(*block.Content.Children) > 0 {
-        headToken := (*block.Content.Children)[0].Token
+      for len(blockChildren) > 0 {
+        headToken := blockChildren[0].Token
 
         invocationResultGates, invocationResultWires, invocationResultOutputs, err := Parse(
-          block.Content.Children,
+          &blockChildren,
           invocationStack,
         )
 
@@ -292,11 +392,33 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         gates = append(gates, invocationResultGates...)
         wires = append(wires, invocationResultWires...)
 
+        // If a return token is found, take each value that is outputted, connect it to a
+        // `BLOCK_OUTPUT` node, and put the output wire of that `BLOCK_OUTPUT` node in the outputs
+        // for this action.
         if headToken == "BLOCK_RETURN" {
-          outputs = append(outputs, invocationResultOutputs...)
+          fmt.Println("  * block has return!")
+          for ct, output := range invocationResultOutputs {
+            // Create a wire to join between the block output node and the bound variable
+            wireId += 1
+            wire := &Wire{ Id: wireId }
+            wires = append(wires, wire)
+
+            // Create a new block output gate to express that we're entering a block.
+            gates = append(gates, &Gate{
+              Type: BLOCK_OUTPUT,
+              Label: fmt.Sprintf("Output %d from block %s invocation", ct, block.Name),
+              Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
+              Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
+            })
+
+            // Add the output wire to the outputs for the block.
+            outputs = append(outputs, wire)
+          }
         }
       }
 
+
+      fmt.Println("\\ Done Invoking block: ", block)
       // Remove token that was just parsed.
       *inputs = (*inputs)[:len(*inputs) - 1]
     }
@@ -311,7 +433,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         break
       }
     }
-    fmt.Println("* block return was able to find parent function (ie, 'self'):", self)
+    // fmt.Println("* block return was able to find parent function (ie, 'self'):", self)
 
     // Ensure that the parent of the currently invoked function exists.
     if self == nil {
@@ -324,13 +446,12 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
     // Fetch the number of outputs required from the block we're within.
     numberOfOutputs := self.Data["OutputQuantity"].(int)
-    fmt.Println("* block return expects this many outputs:", numberOfOutputs)
+    // fmt.Println("* block return expects this many outputs:", numberOfOutputs)
 
-    // Fetch 
     for len(outputs) < numberOfOutputs {
       // Get the token after the current token
       parameter := (*inputs)[1]
-      fmt.Printf("  * found new token after return: %+v\n", parameter)
+      // fmt.Printf("  * found new token after return: %+v\n", parameter)
 
       // Execute it
       paramGates, paramWires, paramOutputs, err := Parse(&[]Node{parameter}, stack)
@@ -339,7 +460,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       if err != nil {
         return nil, nil, nil, err
       }
-      fmt.Printf("  * executed token successfully... %d results.\n", len(paramOutputs))
+      // fmt.Printf("  * executed token successfully... %d results.\n", len(paramOutputs))
 
       // Ensure that the parameter, when evaluated, returns outputs.
       if len(paramOutputs) == 0 {
@@ -363,7 +484,20 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // ie, [block_return, 1, 2, 3] => [block_return, 2, 3]
       *inputs = append([]Node{input}, (*inputs)[2:]...)
     }
-    fmt.Println("* Found all block return tokens, added each output wire to the outputs of the block return.")
+    // fmt.Println("* Found all block return tokens, added each output wire to the outputs of the block return.")
+
+    // There should be no tokens left in the input array after the block return that haven't already
+    // been parsed.
+    if !( len(*inputs) == 1 && (*inputs)[0].Token == "BLOCK_RETURN" ) {
+      return nil, nil, nil, errors.New(fmt.Sprintf(
+        "Block %s at %d:%d has too many return values, expected %d, got %d. Stop.\n",
+        self.Data["Name"],
+        input.Row,
+        input.Col,
+        numberOfOutputs,
+        numberOfOutputs + len(*inputs),
+      ))
+    }
 
     *inputs = (*inputs)[:len(*inputs) - 1]
 
@@ -428,6 +562,25 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
     // Remove token that was just parsed.
     *inputs = (*inputs)[1:]
+
+  case "BLOCK":
+    if name, ok := input.Data["Name"].(string); ok {
+      // Add the block to the latest stackframe, in the blocks section.
+      stack[len(stack) - 1].Blocks = append(stack[len(stack) - 1].Blocks, &Block{
+        Name: name,
+        Content: &input,
+      })
+
+      // Remove token that was just parsed.
+      *inputs = (*inputs)[1:]
+    } else {
+      return nil, nil, nil, errors.New(fmt.Sprintf(
+        "The block at %d:%d doesn't have a name, instead found %s. Stop.",
+        input.Row,
+        input.Col,
+        input.Data["Name"],
+      ))
+    }
 
   case "BOOL":
     if value, ok := input.Data["Value"].(bool); ok {

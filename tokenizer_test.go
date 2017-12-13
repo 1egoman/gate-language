@@ -2,7 +2,7 @@ package main
 
 import (
   "testing"
-  // "fmt"
+  "fmt"
   "reflect"
 )
 
@@ -10,7 +10,7 @@ var NONE map[string]interface{} = map[string]interface{}{}
 
 func TestAnd(t *testing.T) {
   result, err := Tokenizer("1 and 0")
-  if err != nil { t.Error("Error:"+err.Error()) }
+  if err != nil { t.Error(fmt.Sprintf("Error: %s", err.Error())) }
   if !reflect.DeepEqual(*result, []Node{
     Node{Token: "OP_AND", Row: 3, Col: 1, Data: map[string]interface{}{
       "LeftHandSide": Node{Token: "BOOL", Row: 1, Col: 1, Data: map[string]interface{}{"Value": true}},
@@ -216,7 +216,7 @@ func TestAssignment(t *testing.T) {
   result, err := Tokenizer("let a = 1")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a"}},
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
     Node{Token: "BOOL", Row: 9, Col: 1, Data: map[string]interface{}{"Value": true}},
   }) {
     t.Error("Fail!")
@@ -228,7 +228,7 @@ func TestAssignmentWithMultipleValues(t *testing.T) {
   result, err := Tokenizer("let a b = adder(1 0)")
   if err != nil { t.Error("Error:"+err.Error()) }
   if !reflect.DeepEqual(*result, []Node{
-    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a b"}},
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a b", "Values": []Node{}}},
     Node{
       Token: "INVOCATION",
       Row: 11,
@@ -267,7 +267,7 @@ func TestBlock(t *testing.T) {
       Col: 1,
       Data: map[string]interface{}{"Name": "a", "Params": "b c d", "OutputQuantity": 0, "InputQuantity": 3},
       Children: &[]Node{
-        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "a"}},
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
         Node{Token: "BOOL", Row: 13, Col: 2, Data: map[string]interface{}{"Value": true}},
       },
     },
@@ -288,7 +288,7 @@ func TestBlockWithoutInputParameters(t *testing.T) {
       Col: 1,
       Data: map[string]interface{}{"Name": "a", "Params": "", "OutputQuantity": 0, "InputQuantity": 0},
       Children: &[]Node{
-        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "a"}},
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
         Node{Token: "BOOL", Row: 13, Col: 2, Data: map[string]interface{}{"Value": true}},
       },
     },
@@ -310,7 +310,7 @@ func TestBlockWithReturn(t *testing.T) {
       Col: 1,
       Data: map[string]interface{}{"Name": "a", "Params": "b c d", "OutputQuantity": 1, "InputQuantity": 3},
       Children: &[]Node{
-        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "e"}},
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "e", "Values": []Node{}}},
         Node{Token: "GROUP", Row: 13, Col: 2, Data: NONE, Children: &[]Node{
           Node{Token: "OP_AND", Row: 16, Col: 2, Data: map[string]interface{}{
             "LeftHandSide": Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "b"}},
