@@ -2,7 +2,14 @@ package main
 
 import (
   "fmt"
+  "encoding/json"
 )
+
+type Summary struct {
+  Gates []*Gate
+  Wires []*Wire
+  Outputs []*Wire
+}
 
 func main() {
   result, err := TokenizeFile("./foo.bit")
@@ -107,5 +114,18 @@ func main() {
   }
 
   fmt.Println("FINAL OUTPUTS", finalOutputs)
+
+  // Print out a summary of the results to that they can be rendered.
+  summary := Summary{
+    Gates: allGates,
+    Wires: allWires,
+    Outputs: finalOutputs,
+  }
+
+  serialized, err := json.Marshal(summary)
+  if err != nil {
+    panic(err)
+  }
+  fmt.Println(string(serialized))
 }
 

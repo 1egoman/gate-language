@@ -21,6 +21,7 @@ const (
   GROUND = "GROUND"
   BLOCK_INPUT = "BLOCK_INPUT"
   BLOCK_OUTPUT = "BLOCK_OUTPUT"
+  BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 )
 
 type Gate struct {
@@ -45,6 +46,8 @@ type StackFrame struct {
   Variables []*Variable
   Blocks []*Block
 }
+
+var BUILTIN_FUNCTION_NAMES []string = []string{"print"}
 
 func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, error) {
   gates := []*Gate{}
@@ -220,7 +223,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         // Verify that the token is of the proper type.
         if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
           return nil, nil, nil, errors.New(fmt.Sprintf(
-            "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.",
+            "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.\n",
             input.Row,
             input.Col,
             parameter.Row,
@@ -264,6 +267,38 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       }
 
       for ct, name := range strings.Split(names, " ") {
+        // See if the variable that's being defined has already been defined in the latest stack
+        // frame. If it has, get the wire that it refers to and replace every instance of that wire
+        // in all gates with the wire that was just created. This facilitates the creation of
+        // "graph" structures (without self referential access like this, the most complex structure
+        // that could be created would be a tree)
+        for _, variable := range stack[len(stack) - 1].Variables {
+          if variable.Name == name {
+            wire := rhsValues[ct]
+            newWire := variable.Value
+            fmt.Println("* Assigning to variable that already exists:", name, "wire =", wire, "newWire =", newWire)
+
+            // Rewrite all gates that have `wire` to `newWire`
+            for ct := 0; ct < len(gates); ct++ {
+              // Check inputs
+              for inputCt := 0; inputCt < len(gates[ct].Inputs); inputCt += 1 {
+                if gates[ct].Inputs[inputCt].Id == wire.Id {
+                  gates[ct].Inputs[inputCt] = newWire
+                }
+              }
+
+              // Check outputs
+              for outputCt := 0; outputCt < len(gates[ct].Outputs); outputCt += 1 {
+                if gates[ct].Outputs[outputCt].Id == wire.Id {
+                  gates[ct].Outputs[outputCt] = newWire
+                }
+              }
+            }
+
+            break
+          }
+        }
+
         // Add a new variable on the stack that is linked to the value with the same index after the
         // assignment. ie, let a b = 1 0 means to create a wire between `a` and `1`, and to create a
         // wire between `b` and `0`.
@@ -521,13 +556,25 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       }
 
       // Ensure that a variable was found.
+      // if wire == nil {
+      //   return nil, nil, nil, errors.New(fmt.Sprintf(
+      //     "The variable `%s` found at %d:%d could not be found in the stack (did you assign it before usign it?). Stop.\n",
+      //     value,
+      //     input.Row,
+      //     input.Col,
+      //   ))
+      // }
+
       if wire == nil {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
-          "The variable `%s` found at %d:%d could not be found in the stack (did you assign it before usign it?). Stop.\n",
-          value,
-          input.Row,
-          input.Col,
-        ))
+        // Make a new wire
+        wireId += 1
+        wire = &Wire{Id: wireId, Desc: fmt.Sprintf("for implicitly declared variable %s", value)}
+
+        // Implicity declare a variable linked to that wire
+        stack[len(stack) - 1].Variables = append(stack[len(stack) - 1].Variables, &Variable{
+          Name: value,
+          Value: wire,
+        })
       }
 
       // Add wire to all wires, and to output.
