@@ -32,6 +32,23 @@ type Token struct {
 }
 
 var TOKENS []Token = []Token{
+  Token{
+    Name: "MULTI_COMMENT",
+    Type: SINGLE,
+    Match: regexp.MustCompile(`^\/\*(.*)\*\/`),
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{ "Message": match[1] };
+    },
+  },
+  Token{
+    Name: "SINGLE_COMMENT",
+    Type: SINGLE,
+    Match: regexp.MustCompile(`^\/\/[^\n]*`),
+    GetData: func(match []string) map[string]interface{} {
+      return map[string]interface{}{ "Message": match[1] };
+    },
+  },
+
   Token{Name: "OP_AND", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
   Token{Name: "OP_OR", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
   Token{Name: "OP_NOT", Type: UNARY_OPERATOR, Match: regexp.MustCompile("^not"), GetData: NO_DATA},

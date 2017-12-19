@@ -57,6 +57,13 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
   input := (*inputs)[0]
 
   switch input.Token {
+  case "SINGLE_COMMENT": fallthrough
+  case "MULTI_COMMENT":
+
+    // Remove token that was just parsed.
+    *inputs = (*inputs)[1:]
+    break
+
   case "OP_AND": fallthrough
   case "OP_OR":
     var lhsOutput *Wire
