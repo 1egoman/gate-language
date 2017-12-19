@@ -600,10 +600,6 @@ func TokenizeFile(path string) (*[]Node, error) {
     return nil, err
   }
 
-  fmt.Println("SOURCE:")
-  fmt.Println(string(source))
-  fmt.Println()
-
   // Tokenize
   result, err2 := Tokenizer(string(source))
   if err2 != nil {

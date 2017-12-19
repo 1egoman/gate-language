@@ -3,6 +3,7 @@ package main
 import (
   "fmt"
   "encoding/json"
+  "flag"
 )
 
 type Summary struct {
@@ -12,48 +13,36 @@ type Summary struct {
 }
 
 func main() {
-  result, err := TokenizeFile("./foo.bit")
+  var tokenize = flag.Bool("tokenize", false, "Only tokenize the input, don't actually convert to gates.")
+  var verbose = flag.Bool("verbose", false, "Print lots of debugging output.")
+  flag.Parse()
+
+  args := flag.Args()
+
+  if len(args) == 0 {
+    fmt.Println("Please pass a file path to act on!")
+    return
+  }
+
+  result, err := TokenizeFile(args[0])
   if err != nil {
-    fmt.Println("Error: ", err)
+    fmt.Println(err)
   }
 
-  fmt.Println("RESULTS FROM TOKENIZER:")
-  PrintAst(result, 0, "")
-  fmt.Println()
-  fmt.Println()
-  fmt.Println()
-
-  stack := []*StackFrame{
-    &StackFrame{
-      Variables: []*Variable{
-        // &Variable{Name: "a", Value: &Wire{Id: -1, Desc: "Variable a"}},
-      },
-      Blocks: []*Block{
-        // &Block{
-        //   Name: "foo",
-        //   Content: &Node{
-        //     Token: "BLOCK",
-        //     Data: map[string]interface{}{
-        //       "Name": "foo",
-        //       "Params": "a",
-        //       "InputQuantity": 1,
-        //       "OutputQuantity": 2,
-        //     },
-        //     Children: &[]Node{
-        //       Node{Token: "BLOCK_RETURN"},
-        //       Node{Token: "GROUP", Row: 13, Col: 2, Data: map[string]interface{}{}, Children: &[]Node{
-        //         Node{Token: "OP_AND", Row: 16, Col: 2, Data: map[string]interface{}{
-        //           "LeftHandSide": Node{Token: "IDENTIFIER", Row: 14, Col: 2, Data: map[string]interface{}{"Value": "a"}},
-        //           "RightHandSide": Node{Token: "IDENTIFIER", Row: 20, Col: 2, Data: map[string]interface{}{"Value": "a"}},
-        //         }},
-        //       }},
-        //       Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
-        //     },
-        //   },
-        // },
-      },
-    },
+  if *tokenize {
+    PrintAst(result, 0, "")
+    return
   }
+
+  if *verbose {
+    fmt.Println("RESULTS FROM TOKENIZER:")
+    PrintAst(result, 0, "")
+    fmt.Println()
+    fmt.Println()
+    fmt.Println()
+  }
+
+  stack := []*StackFrame{ &StackFrame{} }
 
   if result == nil {
     fmt.Println("Result was nil!")
@@ -67,7 +56,7 @@ func main() {
   resultValues := *result
 
   for len(resultValues) > 0 {
-    fmt.Println("==========>", resultValues)
+    if *verbose { fmt.Println("==========>", resultValues) }
     gates, wires, outputs, err := Parse(&resultValues, stack)
 
     allGates = append(allGates, gates...)
@@ -75,45 +64,49 @@ func main() {
     finalOutputs = outputs
 
     if err != nil {
-      fmt.Printf("Error %s", err)
+      fmt.Println(err)
       return
     }
 
-    fmt.Println("GATES:")
-    for _, gate := range gates {
-      fmt.Printf("- %s ", gate.Type)
+    if *verbose {
+      fmt.Println("GATES:")
+      for _, gate := range gates {
+        fmt.Printf("- %s ", gate.Type)
 
-      fmt.Printf("(IN:")
-      for _, input := range gate.Inputs {
-        fmt.Printf(" %+v", input)
+        fmt.Printf("(IN:")
+        for _, input := range gate.Inputs {
+          fmt.Printf(" %+v", input)
+        }
+        fmt.Printf(") ")
+
+        fmt.Printf("(OUT:")
+        for _, output := range gate.Outputs {
+          fmt.Printf(" %+v", output)
+        }
+        fmt.Printf(")")
+
+        fmt.Printf(` "%s"`, gate.Label)
+        fmt.Printf("\n")
       }
-      fmt.Printf(") ")
+      fmt.Println("===")
 
-      fmt.Printf("(OUT:")
-      for _, output := range gate.Outputs {
-        fmt.Printf(" %+v", output)
+      fmt.Println("WIRES:")
+      for _, wire := range wires {
+        fmt.Printf("- %+v\n", wire)
       }
-      fmt.Printf(")")
+      fmt.Println("===")
 
-      fmt.Printf(` "%s"`, gate.Label)
-      fmt.Printf("\n")
+      fmt.Println("OUTPUTS:")
+      for _, output := range outputs {
+        fmt.Printf("- %+v\n", output)
+      }
+      fmt.Println("===")
     }
-    fmt.Println("===")
-
-    fmt.Println("WIRES:")
-    for _, wire := range wires {
-      fmt.Printf("- %+v\n", wire)
-    }
-    fmt.Println("===")
-
-    fmt.Println("OUTPUTS:")
-    for _, output := range outputs {
-      fmt.Printf("- %+v\n", output)
-    }
-    fmt.Println("===")
   }
 
-  fmt.Println("FINAL OUTPUTS", finalOutputs)
+  if *verbose {
+    fmt.Println("FINAL OUTPUTS", finalOutputs)
+  }
 
   // Print out a summary of the results to that they can be rendered.
   summary := Summary{
@@ -124,7 +117,8 @@ func main() {
 
   serialized, err := json.Marshal(summary)
   if err != nil {
-    panic(err)
+    fmt.Println(err)
+    return
   }
   fmt.Println(string(serialized))
 }
