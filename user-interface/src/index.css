@@ -1,0 +1,26 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+
+  display: flex;
+  flex-direction: row;
+}
+
+#editor-parent {
+  width: 30%;
+  height: 100vh;
+}
+
+#resize-bar {
+  width: 50px;
+  background-color: #ccc;
+  cursor: resize;
+  cursor: col-resize;
+  height: 100vh;
+}
+
+#viewport-parent {
+  flex: 1;
+  height: 100vh;
+}
