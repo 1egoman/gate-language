@@ -13,7 +13,7 @@ export default function renderViewport(viewport) {
     .attr('class', 'layer layer-wires');
 
   return data => {
-    const allGates = data.Gates, allWires = data.Wires;
+    const allGates = data.Gates, allWires = data.Wires, allOutputs = data.Outputs;
 
     const gatesSelection = gates.selectAll('.gate').data(allGates);
 
@@ -74,84 +74,70 @@ export default function renderViewport(viewport) {
 
 
 
-
-    const wireEnds = allGates.reduce((acc, gate) => {
-      return [
-        ...acc,
-        ...gate.Inputs.map(inp => ({...inp, gate})),
-        ...gate.Outputs.map(out => ({...out, gate})),
-      ];
-    }, []);
-
-    const wirePaths = wireEnds.reduce((acc, i) => {
-      let index = acc.findIndex(j => j.Id === i.Id);
-      if (index !== -1) {
-        acc[index].ends.push(i.gate);
-        return acc;
-      } else {
-        return [...acc, {...i, gate: undefined, ends: [i.gate]}];
-      }
-    }, []);
-
-    const wiresToDraw = wirePaths.reduce((acc, i) => {
-      return [...acc, ...i.ends.reduce((acc, j, ct) => {
-        if (ct < (i.ends.length - 1)) {
-          return [...acc, {id: i.Id, start: i.ends[ct], end: i.ends[ct+1]}];
-        } else {
-          return acc;
-        }
-      }, [])];
-    });
-
-    if (!window.didPrint) {
-      console.log('wireEnds', wireEnds);
-      console.log('wirePaths', wirePaths);
-      console.log('wiresToDraw', wiresToDraw);
-      window.didPrint = true
+    function getGate(gateId) {
+      return allGates.find(i => i.id === gateId);
     }
 
-    const wiresSelection = wires.selectAll('.wire').data(wiresToDraw);
+    function getGateInputPosititon(gate, inputNumber) {
+      const spacingBetweenInputs = GATE_WIDTH / gate.Inputs.length;
+      const startPadding = spacingBetweenInputs / 2;
+      return {
+        x: gate.xPosition + startPadding + (spacingBetweenInputs * inputNumber),
+        y: gate.yPosition + GATE_HEIGHT - 6,
+      }
+    }
+
+    function getGateOutputPosititon(gate, outputNumber) {
+      const spacingBetweenOutputs = GATE_WIDTH / gate.Outputs.length;
+      const startPadding = spacingBetweenOutputs / 2;
+      return {
+        x: gate.xPosition + startPadding + (spacingBetweenOutputs * outputNumber),
+        y: gate.yPosition,
+      }
+    }
+
+    const wirePaths = {};
+    function appendWirePath(id, x, y) {
+      if (wirePaths[id]) {
+        wirePaths[id] += `L${x},${y}`;
+      } else {
+        wirePaths[id] = `M${x},${y}`;
+      }
+    }
+
+    allGates.forEach(gate => {
+      gate.Inputs.forEach((input, ct) => {
+        const {x, y} = getGateInputPosititon(gate, ct);
+        appendWirePath(input.Id, x, y);
+      });
+
+      gate.Outputs.forEach((output, ct) => {
+        const {x, y} = getGateOutputPosititon(gate, ct);
+        appendWirePath(output.Id, x, y);
+      });
+    });
+
+    allOutputs.forEach(wire => {
+      appendWirePath(wire.Id, 0, 0);
+    });
+
+
+    const wiresSelection = wires.selectAll('.wire').data(
+      Object.keys(wirePaths).map(k => ({id: k, data: wirePaths[k]}))
+    );
 
     // Add a new wires when new data elements show up
     const wireEnterSelection = wiresSelection.enter().append('g').attr('class', 'wire');
 
-    wireEnterSelection.append('line')
+    wireEnterSelection.append('path')
       .attr('fill', 'transparent')
       .attr('stroke', 'black')
       .attr('stroke-width', 2)
-
-    wireEnterSelection.append('text')
+      .attr('data-wire-id', d => d.id)
 
     const wireMergeSelection = wireEnterSelection.merge(wiresSelection);
-    wireMergeSelection.select('line')
-      .attr('x1', d => {
-        // const spaceBetweenInputs = GATE_WIDTH / (d.start.Inputs.length + 2);
-        // return d.start.xPosition + (spaceBetweenInputs * d.start.Inputs.findIndex(i => i.Id === d.id));
-        return d.start.xPosition;
-      })
-      .attr('y1', d => {
-        if (d.start.Inputs.find(i => i.Id === d.id)) {
-          // If the wire is an input, render it at the top of the gate.
-          return d.start.yPosition;
-        } else {
-          // If the wire is an output, render it at the bottom of the gate.
-          return d.start.yPosition + GATE_HEIGHT;
-        }
-      })
-      .attr('x2', d => d.end.xPosition)
-      .attr('y2', d => {
-        if (d.start.Outputs.find(i => i.Id === d.id)) {
-          // If the wire is an input, render it at the top of the gate.
-          return d.end.yPosition;
-        } else {
-          // If the wire is an output, render it at the bottom of the gate.
-          return d.end.yPosition + GATE_HEIGHT;
-        }
-      })
-
-    wireMergeSelection.select('text')
-      .text(d => d.id)
-      .attr('transform', d => `translate(${-1 * (d.end.xPosition - d.start.xPosition) / 2},${-1 * (d.end.yPosition - d.start.yPosition) / 2})`)
+    wireMergeSelection.select('path')
+      .attr('d', d => d.data)
 
     wiresSelection.exit().remove()
   }
