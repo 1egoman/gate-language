@@ -6,14 +6,70 @@ const GATE_HEIGHT = 50;
 export default function renderViewport(viewport) {
   const svg = d3.select(viewport);
 
-  const gates = svg.append('g')
-    .attr('class', 'layer layer-gates');
+  const blocks = svg.append('g')
+    .attr('class', 'layer layer-blocks');
 
   const wires = svg.append('g')
     .attr('class', 'layer layer-wires');
 
+  const gates = svg.append('g')
+    .attr('class', 'layer layer-gates');
+
   return data => {
-    const allGates = data.Gates, allWires = data.Wires, allOutputs = data.Outputs;
+    const allGates = data.Gates, allOutputs = data.Outputs;
+
+    // Link block inputs and outputs with the block they belong to.
+    let blockTree = {};
+    allGates.forEach(gate => {
+      if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        const parts = gate.Label.match(/(?:Input|Output) ([0-9]+) (?:into|from) block (.+) invocation ([0-9]+)/);
+        if (parts === null) {
+          throw new Error(`Gate label for ${gate.Type} doesn't match the default format.`);
+        }
+
+        const inputNumber = parseInt(parts[1], 10),
+              blockName = parts[2],
+              invocationNumber = parseInt(parts[3], 10);
+
+        blockTree[blockName] = blockTree[blockName] || {};
+
+        blockTree[blockName][invocationNumber] = blockTree[blockName][invocationNumber] || {
+          inputs: {},
+          outputs: {},
+        };
+
+        if (gate.Type === 'BLOCK_INPUT') {
+          blockTree[blockName][invocationNumber].inputs[inputNumber] = gate;
+        } else {
+          blockTree[blockName][invocationNumber].outputs[inputNumber] = gate;
+        }
+      }
+    });
+
+    // Convert block tree into an array of blocks
+    const allBlocks = [];
+    for (let blockName in blockTree) {
+      for (let invocationNumber in blockTree[blockName]) {
+        const inputs = Object.values(blockTree[blockName][invocationNumber].inputs);
+        const outputs = Object.values(blockTree[blockName][invocationNumber].outputs);
+        allBlocks.push({
+          name: blockName,
+          invocationNumber,
+          inputs,
+          outputs,
+          upperLeftBound: [
+            Math.min.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
+            Math.min.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
+          ],
+          lowerRightBound: [
+            Math.max.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
+            Math.max.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
+          ],
+        });
+      }
+    }
+    window.allBlocks = allBlocks
+
 
     const gatesSelection = gates.selectAll('.gate').data(allGates);
 
@@ -42,6 +98,10 @@ export default function renderViewport(viewport) {
             return 'red';
           } else if (d.Type === 'GROUND') {
             return 'black';
+          } else if (d.Type === 'BLOCK_INPUT') {
+            return 'red';
+          } else if (d.Type === 'BLOCK_OUTPUT') {
+            return 'blue';
           } else {
             return 'transparent';
           }
@@ -65,6 +125,9 @@ export default function renderViewport(viewport) {
               29.9283427,44.3836574 29.8529384,44.3882959 L29.9995379,44.8264114 Z`;
           case 'SOURCE':
             return `M10,0 H20 V22 H30 V34 H20 V50 H10 V32 H0 V22 H10 V0`;
+          case 'BLOCK_INPUT':
+          case 'BLOCK_OUTPUT':
+            return `M0,0 H20 V20 H0 V0`;
           default:
             return `M0,0 H30 V50 H0 V0`;
           }
@@ -74,11 +137,11 @@ export default function renderViewport(viewport) {
 
 
 
-    function getGate(gateId) {
-      return allGates.find(i => i.id === gateId);
-    }
-
     function getGateInputPosititon(gate, inputNumber) {
+      if (gate.Type === 'BLOCK_OUTPUT' || gate.Type === 'BLOCK_INPUT') {
+        return {x: gate.xPosition + 10, y: gate.yPosition + 10};
+      }
+
       const spacingBetweenInputs = GATE_WIDTH / gate.Inputs.length;
       const startPadding = spacingBetweenInputs / 2;
       return {
@@ -88,6 +151,10 @@ export default function renderViewport(viewport) {
     }
 
     function getGateOutputPosititon(gate, outputNumber) {
+      if (gate.Type === 'BLOCK_OUTPUT' || gate.Type === 'BLOCK_INPUT') {
+        return {x: gate.xPosition + 10, y: gate.yPosition + 10};
+      }
+
       const spacingBetweenOutputs = GATE_WIDTH / gate.Outputs.length;
       const startPadding = spacingBetweenOutputs / 2;
       return {
@@ -140,5 +207,22 @@ export default function renderViewport(viewport) {
       .attr('d', d => d.data)
 
     wiresSelection.exit().remove()
+
+
+
+    const blocksSelection = blocks.selectAll('.block').data(allBlocks);
+    blocksSelection.enter()
+      .append('rect')
+        .attr('class', 'block')
+        .attr('fill', 'silver')
+        .attr('id', 'block')
+    .merge(blocksSelection)
+      .attr('class', d => `block block-${d.name}`)
+      .attr('x', d => d.upperLeftBound[0])
+      .attr('y', d => d.upperLeftBound[1])
+      .attr('width', d => d.lowerRightBound[0] - d.upperLeftBound[0])
+      .attr('height', d => d.lowerRightBound[1] - d.upperLeftBound[1])
+
+    blocksSelection.exit().remove()
   }
 }

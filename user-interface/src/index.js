@@ -82,9 +82,9 @@ let viewboxY = 0;
 // Adjust the position of the viewbox when the user drags around the svg canvas.
 let moveOnSvg = false;
 viewport.addEventListener('mousedown', event => {
-  moveOnSvg = event.target.getAttribute('id') === 'viewport';
+  moveOnSvg = event.target.getAttribute('id') === 'viewport' || event.target.getAttribute('id') === 'block';
 
-  // Deselect all gates if clicking on the viewport background.
+  // Deselect all gates if clicking on the viewport background or a block.
   if (moveOnSvg) {
     data.Gates.forEach(i => {
       i.active = false;
