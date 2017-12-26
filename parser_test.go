@@ -155,7 +155,7 @@ func TestAssigningVariable(t *testing.T) {
     &Gate{
       Type: SOURCE,
       Inputs: []*Wire{},
-      Outputs: []*Wire{ &Wire{Id: 1} },
+      Outputs: []*Wire{ &Wire{Id: -1} },
     },
   }) {
     // Dereference so we can see the contents of the pointers
