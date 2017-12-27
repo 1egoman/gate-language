@@ -9,6 +9,8 @@ import (
 type Wire struct {
   Id int
   Desc string
+  Start *Gate
+  End *Gate
 }
 var wireId int = 0
 
@@ -24,7 +26,9 @@ const (
   BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 )
 
+var gateId int = 0
 type Gate struct {
+  Id int
   Type GateType
   Label string
   Inputs []*Wire
@@ -145,7 +149,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     outputs = append(outputs, wire)
 
     // Create the gate, using the wire we just created as the single output of the and gate.
+    gateId += 1
     gates = append(gates, &Gate{
+      Id: gateId,
       Type: gateType,
       Inputs: append(append([]*Wire{}, lhsOutput), rhsOutput),
       Outputs: []*Wire{ wire },
@@ -193,7 +199,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     outputs = append(outputs, wire)
 
     // Create the gate, using the wire we just created as the single output of the and gate.
+    gateId += 1
     gates = append(gates, &Gate{
+      Id: gateId,
       Type: NOT,
       Inputs: append([]*Wire{}, rhsOutput),
       Outputs: []*Wire{ wire },
@@ -387,7 +395,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           wires = append(wires, wire)
 
           // Create a new block input gate to express that we're entering a block.
+          gateId += 1
           gates = append(gates, &Gate{
+            Id: gateId,
             Type: BLOCK_INPUT,
             Label: fmt.Sprintf("Input %d into block %s invocation %d", ct, block.Name, block.InvocationCount),
             Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
@@ -450,7 +460,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
             wires = append(wires, wire)
 
             // Create a new block output gate to express that we're entering a block.
+            gateId += 1
             gates = append(gates, &Gate{
+              Id: gateId,
               Type: BLOCK_OUTPUT,
               Label: fmt.Sprintf("Output %d from block %s invocation %d", ct, block.Name, block.InvocationCount),
               Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
@@ -659,7 +671,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       outputs = append(outputs, wire)
 
       // Create a gate that represents voltage or ground that the wire attaches to.
+      gateId += 1
       gates = append(gates, &Gate{
+        Id: gateId,
         Type: gateType,
         Inputs: []*Wire{},
         Outputs: []*Wire{wire},

@@ -5,9 +5,6 @@ import (
   "regexp"
   "errors"
   "strings"
-
-  // For reading file from disk
-  "io/ioutil"
 )
 
 var NO_DATA func([]string) map[string]interface{} = func(m []string) map[string]interface{} {
@@ -592,26 +589,3 @@ func main1() {
   fmt.Println("Results:")
   PrintAst(result, 0, "")
 }
-
-func TokenizeFile(path string) (*[]Node, error) {
-  // Read source code from disk
-  source, err := ioutil.ReadFile(path)
-  if err != nil {
-    return nil, err
-  }
-
-  // Tokenize
-  result, err2 := Tokenizer(string(source))
-  if err2 != nil {
-    return nil, err2
-  }
-
-  return result, nil
-}
-
-// func main() {
-//   err := TokenizeFile("./foo.bit")
-//   if err != nil {
-//     fmt.Println("Error: ", err)
-//   }
-// }
