@@ -68,7 +68,6 @@ export default function renderViewport(viewport) {
         });
       }
     }
-    window.allBlocks = allBlocks
 
 
     const gatesSelection = gates.selectAll('.gate').data(allGates);
@@ -108,6 +107,11 @@ export default function renderViewport(viewport) {
         })
         .attr('d', d => {
           switch (d.Type) {
+          case 'NOT':
+            return `M17.2365571,9.47311425 L30,35 L0,35 L12.7634429,9.47311425
+              C11.1248599,8.65222581 10,6.95747546 10,5 C10,2.23857625 12.2385763,0 15,0
+              C17.7614237,0 20,2.23857625 20,5 C20,6.95747546 18.8751401,8.65222581
+              17.2365571,9.47311425 Z`;
           case 'AND':
             return `M0,15 C0,6.71572875 6.71572875,0 15,0 C23.2842712,0
               30,6.71572875 30,15 L30,45 L0,45 L0,15 Z`;
@@ -146,7 +150,7 @@ export default function renderViewport(viewport) {
       const startPadding = spacingBetweenInputs / 2;
       return {
         x: gate.xPosition + startPadding + (spacingBetweenInputs * inputNumber),
-        y: gate.yPosition + GATE_HEIGHT - 6,
+        y: gate.yPosition + (gate.Type === 'NOT' ? 40 : GATE_HEIGHT) - 6,
       }
     }
 
@@ -214,14 +218,14 @@ export default function renderViewport(viewport) {
     blocksSelection.enter()
       .append('rect')
         .attr('class', 'block')
-        .attr('fill', 'silver')
+        .attr('fill', 'rgba(0, 0, 0, 0.1)')
         .attr('id', 'block')
     .merge(blocksSelection)
       .attr('class', d => `block block-${d.name}`)
       .attr('x', d => d.upperLeftBound[0])
       .attr('y', d => d.upperLeftBound[1])
-      .attr('width', d => d.lowerRightBound[0] - d.upperLeftBound[0])
-      .attr('height', d => d.lowerRightBound[1] - d.upperLeftBound[1])
+      .attr('width', d => d.lowerRightBound[0] - d.upperLeftBound[0] + 20)
+      .attr('height', d => d.lowerRightBound[1] - d.upperLeftBound[1] + 20)
 
     blocksSelection.exit().remove()
   }

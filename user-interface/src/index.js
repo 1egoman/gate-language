@@ -8,6 +8,9 @@ import './index.css';
 
 import renderViewport from './render';
 
+import deepDiff from 'deep-diff';
+import debounce from 'lodash.debounce';
+
 import registerServiceWorker from './registerServiceWorker';
 registerServiceWorker();
 
@@ -38,28 +41,70 @@ CodeMirror.defineSimpleMode('bitlang', {
 
 // Create editor
 const editor = CodeMirror(document.getElementById('editor-parent'), {
-  value: `block half_add(a b) {
-  let sum = (((not a) and b) or (b and (not a)))
-  let carry = (a and b)
-  return sum carry
-}
-
-half_add(1 0)`,
+  value: localStorage.source || `((1 and 0) or 0)`,
   mode: 'bitlang',
   theme: 'monokai',
 });
 editor.setSize('100%', '100%');
 
+const compile = debounce(function compile(source) {
+  return fetch('http://localhost:8080/v1', {
+    method: 'POST',
+    body: source,
+    headers: {
+      'Content-Type': 'text/plain',
+      'Accept': 'application/json',
+    },
+  }).then(result => {
+    if (result.ok) {
+      return result.json();
+    } else {
+      throw new Error(`Compilation failed: ${result.statusCode}`);
+    }
+  }).then(newData => {
+    // Was an error received while compiling?
+    if (newData.Error) {
+      throw new Error(newData.Error);
+    }
+
+    const oldData = data;
+
+    // If there was previous data rendered in the viewport...
+    if (oldData && oldData.Gates.length !== 0) {
+      // ... Diff the old data and the new data. Apply all patches that don't change the position.
+      deepDiff.observableDiff(oldData, newData, d => {
+        if (!(d.path[d.path.length-1] === 'xPosition' || d.path[d.path.length-1] === 'yPosition')) {
+          deepDiff.applyChange(oldData, newData, d);
+        }
+      });
+      data = oldData;
+    } else {
+      // There's no old data to compare against, so the data is just the new data.
+      data = newData;
+    }
+
+    // Randomize starting posititons of gates that don't have a position.
+    newData.Gates.forEach(i => {
+      i.xPosition = i.xPosition || (Math.random() * 500);
+      i.yPosition = i.yPosition || (Math.random() * 500);
+    });
+
+    localStorage.data = JSON.stringify(data);
+  }).catch(err => {
+    console.error(err);
+  });
+}, 1000);
+
+let data = localStorage.data ? JSON.parse(localStorage.data) : {Gates: [], Wires: [], Outputs: []};
+editor.on('change', () => {
+  const value = editor.getValue();
+  localStorage.source = value;
+  compile(value);
+});
+compile(editor.getValue());
+
 // Get a reference to the svg viewport
 const viewport = document.getElementById('viewport');
-const data = {"Gates":[{"Id":1,"Type":"SOURCE","Label":"","Inputs":[],"Outputs":[{"Id":1,"Desc":"","Start":null,"End":null}]},{"Id":2,"Type":"BLOCK_INPUT","Label":"Input 0 into block foo invocation 1","Inputs":[{"Id":1,"Desc":"","Start":null,"End":null}],"Outputs":[{"Id":2,"Desc":"","Start":null,"End":null}]},{"Id":3,"Type":"AND","Label":"","Inputs":[{"Id":2,"Desc":"","Start":null,"End":null},{"Id":2,"Desc":"","Start":null,"End":null}],"Outputs":[{"Id":3,"Desc":"","Start":null,"End":null}]},{"Id":4,"Type":"BLOCK_OUTPUT","Label":"Output 0 from block foo invocation 1","Inputs":[{"Id":2,"Desc":"","Start":null,"End":null}],"Outputs":[{"Id":4,"Desc":"","Start":null,"End":null}]},{"Id":5,"Type":"BLOCK_OUTPUT","Label":"Output 1 from block foo invocation 1","Inputs":[{"Id":3,"Desc":"","Start":null,"End":null}],"Outputs":[{"Id":5,"Desc":"","Start":null,"End":null}]}],"Wires":[{"Id":1,"Desc":"","Start":null,"End":null},{"Id":2,"Desc":"","Start":null,"End":null},{"Id":2,"Desc":"","Start":null,"End":null},{"Id":2,"Desc":"","Start":null,"End":null},{"Id":3,"Desc":"","Start":null,"End":null},{"Id":3,"Desc":"","Start":null,"End":null},{"Id":2,"Desc":"","Start":null,"End":null},{"Id":3,"Desc":"","Start":null,"End":null},{"Id":4,"Desc":"","Start":null,"End":null},{"Id":5,"Desc":"","Start":null,"End":null},{"Id":4,"Desc":"","Start":null,"End":null},{"Id":5,"Desc":"","Start":null,"End":null},{"Id":4,"Desc":"","Start":null,"End":null}],"Outputs":[{"Id":4,"Desc":"","Start":null,"End":null}]}
-
-// Randomize starting posititons
-data.Gates.forEach(i => {
-  i.xPosition = Math.random() * 500;
-  i.yPosition = Math.random() * 500;
-});
-
 const updateViewport = renderViewport(viewport);
 function animate() {
   updateViewport(data);
@@ -103,6 +148,9 @@ viewport.addEventListener('mousemove', event => {
       s.yPosition = (s.yPosition || 0) + event.movementY;
     })
   }
+
+  // Save data to persistant localstorage.
+  localStorage.data = JSON.stringify(data);
 });
 
 
