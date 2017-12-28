@@ -24,3 +24,11 @@ body {
   flex: 1;
   height: 100vh;
 }
+
+#zoom-slider {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  flex: 0;
+  z-index: 100;
+}

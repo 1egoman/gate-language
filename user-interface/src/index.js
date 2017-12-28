@@ -83,19 +83,39 @@ const compile = debounce(function compile(source) {
       data = newData;
     }
 
+    data.Gates = data.Gates || []
+    data.Wires = data.Wires || []
+
     // Randomize starting posititons of gates that don't have a position.
     newData.Gates.forEach(i => {
-      i.xPosition = i.xPosition || (Math.random() * 500);
-      i.yPosition = i.yPosition || (Math.random() * 500);
+      if (i.xPosition && i.yPosition) {
+        return
+      }
+
+      if (i.Inputs.length > 0 && i.Inputs[0].xPosition) {
+        // Pick a position near an input
+        i.xPosition = i.Inputs[0].xPosition + ((Math.random() * 100) - 50);
+        i.yPosition = i.Inputs[0].yPosition + ((Math.random() * 100) - 50);
+      } else if (i.Outputs.length > 0 && i.Outputs[0].xPosition) {
+        // Pick a position near an output
+        i.xPosition = i.Outputs[0].xPosition + ((Math.random() * 100) - 50);
+        i.yPosition = i.Outputs[0].yPosition + ((Math.random() * 100) - 50);
+      } else {
+        i.xPosition = (Math.random() * 500);
+        i.yPosition = (Math.random() * 500);
+      }
     });
 
     localStorage.data = JSON.stringify(data);
+    error = null;
   }).catch(err => {
-    console.error(err);
+    // Set a global error variable
+    error = err.message;
   });
 }, 1000);
 
 let data = localStorage.data ? JSON.parse(localStorage.data) : {Gates: [], Wires: [], Outputs: []};
+let error = null;
 editor.on('change', () => {
   const value = editor.getValue();
   localStorage.source = value;
@@ -107,13 +127,17 @@ compile(editor.getValue());
 const viewport = document.getElementById('viewport');
 const updateViewport = renderViewport(viewport);
 function animate() {
-  updateViewport(data);
+  data.Gates = data.Gates || []
+  data.Wires = data.Wires || []
+  data.Outputs = data.Outputs || []
+
+  updateViewport(data, error, {viewboxX, viewboxY});
   window.requestAnimationFrame(animate);
 }
 window.requestAnimationFrame(animate);
 
 
-
+const zoomSlider = document.getElementById('zoom-slider');
 
 
 
@@ -123,6 +147,16 @@ window.requestAnimationFrame(animate);
 
 let viewboxX = 0;
 let viewboxY = 0;
+let viewboxZoom = 1;
+
+function zoomViewbox() {
+  viewboxZoom = zoomSlider.value / 100; // 0 <= zoomSlider.value <= 100
+  resizePanes(resizePosition);
+}
+
+zoomSlider.addEventListener('change', zoomViewbox);
+zoomSlider.addEventListener('input', zoomViewbox);
+
 
 // Adjust the position of the viewbox when the user drags around the svg canvas.
 let moveOnSvg = false;
@@ -139,8 +173,8 @@ viewport.addEventListener('mousedown', event => {
 viewport.addEventListener('mousemove', event => {
   let selected = data.Gates.filter(i => i.active === true);
   if (event.buttons > 0 && moveOnSvg) {
-    viewboxX -= event.movementX;
-    viewboxY -= event.movementY;
+    viewboxX -= viewboxZoom * event.movementX;
+    viewboxY -= viewboxZoom * event.movementY;
     resizePanes(resizePosition);
   } else if (event.buttons > 0 && selected.length > 0) {
     selected.forEach(s => {
@@ -166,7 +200,7 @@ function resizePanes(resizePosition) {
 
   // If a viewbox has not been set, set it to `0 0 width height` (filling up the whole svg.)
   // Otherwise, adjust the viewbox width and height but keep the x and y coordinates the same.
-  viewport.setAttribute('viewBox', `${viewboxX} ${viewboxY} ${viewport.clientWidth} ${viewport.clientHeight}`);
+  viewport.setAttribute('viewBox', `${viewboxX} ${viewboxY} ${viewboxZoom * viewport.clientWidth} ${viewboxZoom * viewport.clientHeight}`);
 }
 
 resizeBar.addEventListener('mousemove', function(event) {

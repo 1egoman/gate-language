@@ -15,59 +15,33 @@ export default function renderViewport(viewport) {
   const gates = svg.append('g')
     .attr('class', 'layer layer-gates');
 
-  return data => {
+  return (data, error, {viewboxX, viewboxY}) => {
     const allGates = data.Gates, allOutputs = data.Outputs;
 
-    // Link block inputs and outputs with the block they belong to.
-    let blockTree = {};
-    allGates.forEach(gate => {
-      if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
-        const parts = gate.Label.match(/(?:Input|Output) ([0-9]+) (?:into|from) block (.+) invocation ([0-9]+)/);
-        if (parts === null) {
-          throw new Error(`Gate label for ${gate.Type} doesn't match the default format.`);
-        }
+    // If there's an error, render an error overlay.
+    const errorOverlay = svg.selectAll('g#error-overlay').data(error ? [{error, viewboxX, viewboxY}] : []);
+    const errorOverlayEnter = errorOverlay.enter()
+      .append('g')
+        .attr('id', 'error-overlay')
 
-        const inputNumber = parseInt(parts[1], 10),
-              blockName = parts[2],
-              invocationNumber = parseInt(parts[3], 10);
+    errorOverlayEnter.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', '100%')
+      .attr('height', 100)
+      .attr('fill', 'red')
+    errorOverlayEnter.append('text')
+      .attr('transform', `translate(20,50)`)
+      .attr('fill', '#fff')
 
-        blockTree[blockName] = blockTree[blockName] || {};
+    const errorOverlayMerge = errorOverlayEnter.merge(errorOverlay);
+    errorOverlayMerge
+      .attr('transform', d => `translate(${d.viewboxX},${ d.viewboxY})`)
+    errorOverlayMerge.select('text')
+      .text(d => d.error);
 
-        blockTree[blockName][invocationNumber] = blockTree[blockName][invocationNumber] || {
-          inputs: {},
-          outputs: {},
-        };
+    errorOverlay.exit().remove()
 
-        if (gate.Type === 'BLOCK_INPUT') {
-          blockTree[blockName][invocationNumber].inputs[inputNumber] = gate;
-        } else {
-          blockTree[blockName][invocationNumber].outputs[inputNumber] = gate;
-        }
-      }
-    });
-
-    // Convert block tree into an array of blocks
-    const allBlocks = [];
-    for (let blockName in blockTree) {
-      for (let invocationNumber in blockTree[blockName]) {
-        const inputs = Object.values(blockTree[blockName][invocationNumber].inputs);
-        const outputs = Object.values(blockTree[blockName][invocationNumber].outputs);
-        allBlocks.push({
-          name: blockName,
-          invocationNumber,
-          inputs,
-          outputs,
-          upperLeftBound: [
-            Math.min.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
-            Math.min.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
-          ],
-          lowerRightBound: [
-            Math.max.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
-            Math.max.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
-          ],
-        });
-      }
-    }
 
 
     const gatesSelection = gates.selectAll('.gate').data(allGates);
@@ -214,18 +188,83 @@ export default function renderViewport(viewport) {
 
 
 
+
+
+    // Link block inputs and outputs with the block they belong to.
+    let blockTree = {};
+    allGates.forEach(gate => {
+      if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        const parts = gate.Label.match(/(?:Input|Output) ([0-9]+) (?:into|from) block (.+) invocation ([0-9]+)/);
+        if (parts === null) {
+          throw new Error(`Gate label for ${gate.Type} doesn't match the default format.`);
+        }
+
+        const inputNumber = parseInt(parts[1], 10),
+              blockName = parts[2],
+              invocationNumber = parseInt(parts[3], 10);
+
+        blockTree[blockName] = blockTree[blockName] || {};
+
+        blockTree[blockName][invocationNumber] = blockTree[blockName][invocationNumber] || {
+          inputs: {},
+          outputs: {},
+        };
+
+        if (gate.Type === 'BLOCK_INPUT') {
+          blockTree[blockName][invocationNumber].inputs[inputNumber] = gate;
+        } else {
+          blockTree[blockName][invocationNumber].outputs[inputNumber] = gate;
+        }
+      }
+    });
+
+    // Convert block tree into an array of blocks
+    const allBlocks = [];
+    for (let blockName in blockTree) {
+      for (let invocationNumber in blockTree[blockName]) {
+        const inputs = Object.values(blockTree[blockName][invocationNumber].inputs);
+        const outputs = Object.values(blockTree[blockName][invocationNumber].outputs);
+        allBlocks.push({
+          name: blockName,
+          invocationNumber,
+          inputs,
+          outputs,
+          upperLeftBound: [
+            Math.min.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
+            Math.min.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
+          ],
+          lowerRightBound: [
+            Math.max.apply(Math, [...inputs.map(i => i.xPosition), ...outputs.map(i => i.xPosition)]),
+            Math.max.apply(Math, [...inputs.map(i => i.yPosition), ...outputs.map(i => i.yPosition)]),
+          ],
+        });
+      }
+    }
+
     const blocksSelection = blocks.selectAll('.block').data(allBlocks);
-    blocksSelection.enter()
-      .append('rect')
-        .attr('class', 'block')
-        .attr('fill', 'rgba(0, 0, 0, 0.1)')
-        .attr('id', 'block')
-    .merge(blocksSelection)
+    const blockEnterSelection = blocksSelection.enter();
+
+    const blockGroup = blockEnterSelection.append('g')
+      .attr('class', 'block')
+    blockGroup.append('rect')
+      .attr('id', 'block')
+      .attr('fill', 'rgba(0, 0, 0, 0.1)')
+    blockGroup.append('text')
+      .attr('id', 'block')
+      .attr('fill', '#000')
+      .attr('style', 'user-select: none;')
+
+    const blockMergeSelection = blocksSelection.merge(blocksSelection);
+    blockMergeSelection
       .attr('class', d => `block block-${d.name}`)
+    blockMergeSelection.select('rect')
       .attr('x', d => d.upperLeftBound[0])
       .attr('y', d => d.upperLeftBound[1])
       .attr('width', d => d.lowerRightBound[0] - d.upperLeftBound[0] + 20)
       .attr('height', d => d.lowerRightBound[1] - d.upperLeftBound[1] + 20)
+    blockMergeSelection.select('text')
+      .attr('transform', d => `translate(${d.upperLeftBound[0]},${d.upperLeftBound[1] - 5})`)
+      .text(d => `${d.name} (#${d.invocationNumber})`)
 
     blocksSelection.exit().remove()
   }
