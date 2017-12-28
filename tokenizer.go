@@ -92,7 +92,7 @@ var TOKENS []Token = []Token{
     Name: "BLOCK",
     Type: WRAPPER_START,
     // block identifier(as many identifiers ay needed in here all space seperated) {
-    Match: regexp.MustCompile(`(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
     GetData: func(match []string) map[string]interface{} {
       // Calculate an input quantity
       inputQuantity := 0
