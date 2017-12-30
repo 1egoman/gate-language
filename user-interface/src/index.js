@@ -41,7 +41,9 @@ CodeMirror.defineSimpleMode('bitlang', {
 
 // Create editor
 const editor = CodeMirror(document.getElementById('editor-parent'), {
-  value: localStorage.source || `((1 and 0) or 0)`,
+  lineNumbers: true,
+  // value: `let a = toggle()\nled(a)`,
+  value: `let a = toggle()\nlet b = toggle()\nled(a and b)`,
   mode: 'bitlang',
   theme: 'monokai',
 });
@@ -71,9 +73,15 @@ const compile = debounce(function compile(source) {
 
     // If there was previous data rendered in the viewport...
     if (oldData && oldData.Gates.length !== 0) {
-      // ... Diff the old data and the new data. Apply all patches that don't change the position.
+      // ... Diff the old data and the new data.
       deepDiff.observableDiff(oldData, newData, d => {
-        if (!(d.path[d.path.length-1] === 'xPosition' || d.path[d.path.length-1] === 'yPosition')) {
+        // Don't apply patches that change the gate's position.
+        if (d.path[d.path.length-1] === 'xPosition' || d.path[d.path.length-1] === 'yPosition') {
+          return
+        // Don't apply patches that relate to the powered state of a wire.
+        } else if (d.path[d.path.length-1] === 'powered' || d.path[d.path.length-1] === 'powered') {
+          return
+        } else {
           deepDiff.applyChange(oldData, newData, d);
         }
       });
@@ -106,19 +114,18 @@ const compile = debounce(function compile(source) {
       }
     });
 
-    localStorage.data = JSON.stringify(data);
     error = null;
+    renderFrame(data.Gates);
   }).catch(err => {
     // Set a global error variable
     error = err.message;
   });
 }, 1000);
 
-let data = localStorage.data ? JSON.parse(localStorage.data) : {Gates: [], Wires: [], Outputs: []};
+let data = {Gates: [], Wires: [], Outputs: []};
 let error = null;
 editor.on('change', () => {
   const value = editor.getValue();
-  localStorage.source = value;
   compile(value);
 });
 compile(editor.getValue());
@@ -126,18 +133,103 @@ compile(editor.getValue());
 // Get a reference to the svg viewport
 const viewport = document.getElementById('viewport');
 const updateViewport = renderViewport(viewport);
-function animate() {
+function renderFrame(changedGateIds) {
   data.Gates = data.Gates || []
   data.Wires = data.Wires || []
   data.Outputs = data.Outputs || []
 
-  updateViewport(data, error, {viewboxX, viewboxY});
-  window.requestAnimationFrame(animate);
+  function setWire(id, powered) {
+    const wire = data.Wires.find(i => i.Id === id);
+    if (wire) {
+      wire.powered = powered;
+    }
+  }
+
+  function getWire(id) {
+    const wire = data.Wires.find(i => i.Id === id);
+    if (wire) {
+      return wire.powered;
+    }
+  }
+
+  // Update the powered state of the wires.
+  while (true) {
+    const initialState = JSON.stringify(data.Wires);
+
+    data.Gates.forEach(gate => {
+      switch (gate.Type) {
+        case 'AND':
+          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) && getWire(gate.Inputs[1].Id));
+          break;
+        case 'OR':
+          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) || getWire(gate.Inputs[1].Id));
+          break;
+        case 'NOT':
+          setWire(gate.Outputs[0].Id, !getWire(gate.Inputs[0].Id));
+          break;
+
+        case 'BLOCK_INPUT':
+        case 'BLOCK_OUTPUT':
+          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id));
+          break;
+
+        case 'SOURCE':
+          setWire(gate.Outputs[0].Id, true);
+          break;
+        case 'GROUND':
+          setWire(gate.Outputs[0].Id, false);
+          break;
+
+        case 'BUILTIN_FUNCTION':
+          if (['momentary', 'toggle'].indexOf(gate.Label) >= 0) {
+            for (let i = 0; i < gate.Outputs.length; i++) {
+              setWire(gate.Outputs[i].Id, gate.state === 'on');
+            }
+          } else if (['led'].indexOf(gate.Label) >= 0) {
+            if (getWire(gate.Inputs[0].Id) === true) {
+              gate.state = 'on';
+            } else {
+              gate.state = 'off';
+            }
+          }
+          break;
+
+        default:
+          break;
+      }
+    });
+
+    if (initialState === JSON.stringify(data.Wires)) {
+      break;
+    }
+  }
+
+  // Rerender the viewport.
+  updateViewport(data, error, {viewboxX, viewboxY, renderFrame});
 }
-window.requestAnimationFrame(animate);
+renderFrame();
 
 
 const zoomSlider = document.getElementById('zoom-slider');
+
+
+
+
+function save() {
+  const output = `${editor.getValue()}\n---\n${JSON.stringify(data)}`;
+
+  const filename = prompt('Filename?');
+
+  const blob = new Blob([output], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+
+  const tempLink = document.createElement('a');
+  document.body.appendChild(tempLink);
+  tempLink.setAttribute('href', url);
+  tempLink.setAttribute('download', `${filename}.bit.json`);
+  tempLink.click();
+}
+window.save = save;
 
 
 
@@ -149,8 +241,10 @@ let viewboxX = 0;
 let viewboxY = 0;
 let viewboxZoom = 1;
 
+
+// Allow the user to change the zoom level of the viewbox by moving the slider.
 function zoomViewbox() {
-  viewboxZoom = zoomSlider.value / 100; // 0 <= zoomSlider.value <= 100
+  viewboxZoom = zoomSlider.value / 100;
   resizePanes(resizePosition);
 }
 
@@ -163,11 +257,11 @@ let moveOnSvg = false;
 viewport.addEventListener('mousedown', event => {
   moveOnSvg = event.target.getAttribute('id') === 'viewport' || event.target.getAttribute('id') === 'block';
 
-  // Deselect all gates if clicking on the viewport background or a block.
-  if (moveOnSvg) {
+  if (moveOnSvg) { // Deselect all gates if clicking on the viewport background or a block.
     data.Gates.forEach(i => {
       i.active = false;
     });
+    renderFrame([]);
   }
 });
 viewport.addEventListener('mousemove', event => {
@@ -178,13 +272,11 @@ viewport.addEventListener('mousemove', event => {
     resizePanes(resizePosition);
   } else if (event.buttons > 0 && selected.length > 0) {
     selected.forEach(s => {
-      s.xPosition = (s.xPosition || 0) + event.movementX;
-      s.yPosition = (s.yPosition || 0) + event.movementY;
-    })
+      s.xPosition = (s.xPosition || 0) + viewboxZoom * event.movementX;
+      s.yPosition = (s.yPosition || 0) + viewboxZoom * event.movementY;
+    });
+    renderFrame([]);
   }
-
-  // Save data to persistant localstorage.
-  localStorage.data = JSON.stringify(data);
 });
 
 
@@ -201,6 +293,9 @@ function resizePanes(resizePosition) {
   // If a viewbox has not been set, set it to `0 0 width height` (filling up the whole svg.)
   // Otherwise, adjust the viewbox width and height but keep the x and y coordinates the same.
   viewport.setAttribute('viewBox', `${viewboxX} ${viewboxY} ${viewboxZoom * viewport.clientWidth} ${viewboxZoom * viewport.clientHeight}`);
+
+  // Rerender the viewport
+  renderFrame([]);
 }
 
 resizeBar.addEventListener('mousemove', function(event) {

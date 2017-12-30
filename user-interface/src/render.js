@@ -3,6 +3,21 @@ import * as d3 from "d3";
 const GATE_WIDTH = 30;
 const GATE_HEIGHT = 50;
 
+const BUILTIN_GATE_MOUSEDOWN_HANDLERS = {
+  toggle(data) {
+    data.state = data.state === 'on' ? 'off' : 'on';
+  },
+  momentary(data) {
+    data.state = 'on';
+  }
+}
+
+const BUILTIN_GATE_MOUSEUP_HANDLERS = {
+  momentary(data) {
+    data.state = 'off';
+  },
+}
+
 export default function renderViewport(viewport) {
   const svg = d3.select(viewport);
 
@@ -15,8 +30,8 @@ export default function renderViewport(viewport) {
   const gates = svg.append('g')
     .attr('class', 'layer layer-gates');
 
-  return (data, error, {viewboxX, viewboxY}) => {
-    const allGates = data.Gates, allOutputs = data.Outputs;
+  return (data, error, {viewboxX, viewboxY, renderFrame}) => {
+    const allGates = data.Gates, allWires = data.Wires, allOutputs = data.Outputs;
 
     // If there's an error, render an error overlay.
     const errorOverlay = svg.selectAll('g#error-overlay').data(error ? [{error, viewboxX, viewboxY}] : []);
@@ -51,7 +66,31 @@ export default function renderViewport(viewport) {
       .append('g')
       .attr('class', 'gate')
       .on('click', function(d) {
-        d.active = true;
+        if (!d3.event.shiftKey) {
+          // Clicking on a gate selects it.
+          d.active = true;
+          renderFrame([d]);
+        }
+      })
+      .on('mousedown', function(d) {
+        if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
+          // If the builtin has a click handler, call it.
+          const clickHandler = BUILTIN_GATE_MOUSEDOWN_HANDLERS[d.Label];
+          if (clickHandler) {
+            clickHandler(d);
+            renderFrame([d]);
+          }
+        }
+      })
+      .on('mouseup', function(d) {
+        if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
+          // If the builtin has a mouseup handler, call it.
+          const mouseupHandler = BUILTIN_GATE_MOUSEUP_HANDLERS[d.Label];
+          if (mouseupHandler) {
+            mouseupHandler(d);
+            renderFrame([d]);
+          }
+        }
       })
     gatesSelectionEnter.append('path')
         .attr('fill', 'transparent')
@@ -75,6 +114,8 @@ export default function renderViewport(viewport) {
             return 'red';
           } else if (d.Type === 'BLOCK_OUTPUT') {
             return 'blue';
+          } else if (d.state === 'on') {
+            return 'magenta';
           } else {
             return 'transparent';
           }
@@ -106,6 +147,33 @@ export default function renderViewport(viewport) {
           case 'BLOCK_INPUT':
           case 'BLOCK_OUTPUT':
             return `M0,0 H20 V20 H0 V0`;
+          case 'BUILTIN_FUNCTION':
+            switch (d.Label) {
+            case 'toggle':
+              if (d.state === 'on') {
+                return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M9,14.5 C5.96243388,14.5
+                3.5,12.0375661 3.5,9 C3.5,5.96243388 5.96243388,3.5 9,3.5 C12.0375661,3.5
+                14.5,5.96243388 14.5,9 C14.5,12.0375661 12.0375661,14.5 9,14.5 Z`;
+              } else {
+                // Circle on bottom
+                return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M21,14.5
+                C17.9624339,14.5 15.5,12.0375661 15.5,9 C15.5,5.96243388 17.9624339,3.5 21,3.5
+                C24.0375661,3.5 26.5,5.96243388 26.5,9 C26.5,12.0375661 24.0375661,14.5 21,14.5 Z`
+              }
+            case 'momentary':
+              // 'M' with no circle
+              return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M14.6385883,7.38237665
+              L18.3068605,3.71410446 L23.4263057,3.71410446 L23.4263057,18.4556447
+              L19.0622929,18.4556447 L19.0622929,9.2995031 L14.5542,13.807596
+              L10.0133185,9.26671443 L10.0133185,18.8044706 L6.5,18.8044706 L6.5,3.5
+              L10.7562116,3.5 L14.6385883,7.38237665 Z`
+            case 'led':
+              return `M15,29.5 C23.0081289,29.5 29.5,23.0081289 29.5,15 C29.5,6.99187113
+              23.0081289,0.5 15,0.5 C6.99187113,0.5 0.5,6.99187113 0.5,15 C0.5,23.0081289
+              6.99187113,29.5 15,29.5 Z`;
+            default:
+              return `M0,0 H30 V50 H0 V0`;
+            }
           default:
             return `M0,0 H30 V50 H0 V0`;
           }
@@ -114,7 +182,12 @@ export default function renderViewport(viewport) {
     gatesSelection.exit().remove()
 
 
+// ----------------------------------------------------------------------------
+// Wires
+// ----------------------------------------------------------------------------
 
+
+    const wirePaths = {};
     function getGateInputPosititon(gate, inputNumber) {
       if (gate.Type === 'BLOCK_OUTPUT' || gate.Type === 'BLOCK_INPUT') {
         return {x: gate.xPosition + 10, y: gate.yPosition + 10};
@@ -141,7 +214,6 @@ export default function renderViewport(viewport) {
       }
     }
 
-    const wirePaths = {};
     function appendWirePath(id, x, y) {
       if (wirePaths[id]) {
         wirePaths[id] += `L${x},${y}`;
@@ -162,13 +234,18 @@ export default function renderViewport(viewport) {
       });
     });
 
+    // All outputs conenct to to (0, 0)
     allOutputs.forEach(wire => {
       appendWirePath(wire.Id, 0, 0);
     });
-
+    // console.log('allGates', allGates[2].Outputs[0])
 
     const wiresSelection = wires.selectAll('.wire').data(
-      Object.keys(wirePaths).map(k => ({id: k, data: wirePaths[k]}))
+      Object.keys(wirePaths).map(k => ({
+        id: k,
+        data: allWires.find(i => i.Id === parseInt(k, 10)),
+        path: wirePaths[k],
+      }))
     );
 
     // Add a new wires when new data elements show up
@@ -182,12 +259,19 @@ export default function renderViewport(viewport) {
 
     const wireMergeSelection = wireEnterSelection.merge(wiresSelection);
     wireMergeSelection.select('path')
-      .attr('d', d => d.data)
+      .attr('d', d => d.path)
+      .attr('stroke', d => {
+        return d.data && d.data.powered ? 'red' : 'black';
+      })
 
     wiresSelection.exit().remove()
 
 
 
+
+// ----------------------------------------------------------------------------
+// Blocks
+// ----------------------------------------------------------------------------
 
 
     // Link block inputs and outputs with the block they belong to.
