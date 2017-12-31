@@ -40,7 +40,7 @@ var TOKENS []Token = []Token{
   Token{
     Name: "SINGLE_COMMENT",
     Type: SINGLE,
-    Match: regexp.MustCompile(`^\/\/[^\n]*`),
+    Match: regexp.MustCompile(`^\/\/([^\n]*)`),
     GetData: func(match []string) map[string]interface{} {
       return map[string]interface{}{ "Message": match[1] };
     },
