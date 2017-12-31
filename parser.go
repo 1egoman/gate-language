@@ -31,8 +31,12 @@ type Gate struct {
   Id int
   Type GateType
   Label string
+
   Inputs []*Wire
   Outputs []*Wire
+
+  // A reference to the id of the block that this gate is within.
+  CallingContext int
 }
 
 type Variable struct {
@@ -46,7 +50,9 @@ type Block struct {
   InvocationCount int
 }
 
+var stackFrameId int = 0
 type StackFrame struct {
+  Id int
   Variables []*Variable
   Blocks []*Block
 }
@@ -152,8 +158,12 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     gates = append(gates, &Gate{
       Id: gateId,
       Type: gateType,
+
       Inputs: append(append([]*Wire{}, lhsOutput), rhsOutput),
       Outputs: []*Wire{ wire },
+
+      // The stack frame that this gate is within
+      CallingContext: stack[len(stack)-1].Id,
     })
 
     // Remove token that was just parsed.
@@ -204,6 +214,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       Type: NOT,
       Inputs: append([]*Wire{}, rhsOutput),
       Outputs: []*Wire{ wire },
+
+      // The stack frame that this gate is within
+      CallingContext: stack[len(stack)-1].Id,
     })
 
     // Remove token that was just parsed.
@@ -401,6 +414,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
             Label: fmt.Sprintf("Input %d into block %s invocation %d", ct, block.Name, block.InvocationCount),
             Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
             Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
+
+            // The id of the new stack frame that is about to be created.
+            CallingContext: stackFrameId + 1,
           })
 
           vars = append(vars, &Variable{
@@ -419,7 +435,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // that were passed in as parameters as defines in the new stack frame. Also, add a new block
       // called `__self` tht points to the current block. This allows other functions later on to
       // get the reference to the block that it is contained within (one example is BLOCK_RETURN).
+      stackFrameId += 1
       invocationStack := append(stack, &StackFrame{
+        Id: stackFrameId,
         Variables: vars,
         Blocks: []*Block{
           &Block{Name: "__self", Content: block.Content},
@@ -458,14 +476,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
             wire := &Wire{ Id: wireId }
             wires = append(wires, wire)
 
-            // Create a new block output gate to express that we're entering a block.
+            // Create a new block output gate to express that we're leaving a block.
             gateId += 1
             gates = append(gates, &Gate{
               Id: gateId,
               Type: BLOCK_OUTPUT,
               Label: fmt.Sprintf("Output %d from block %s invocation %d", ct, block.Name, block.InvocationCount),
-              Inputs: []*Wire{output}, /* parameter => BLOCK_INPUT */
-              Outputs: []*Wire{wire}, /* BLOCK_INPUT => variable bound in local scope */
+              Inputs: []*Wire{output}, /* parameter => BLOCK_OUTPUT */
+              Outputs: []*Wire{wire}, /* BLOCK_OUTPUT => variable bound in local scope */
+
+              // The stack frame that this gate is within
+              CallingContext: invocationStack[len(invocationStack)-1].Id,
             })
 
             // Add the output wire to the outputs for the block.
@@ -676,6 +697,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         Type: gateType,
         Inputs: []*Wire{},
         Outputs: []*Wire{wire},
+
+        // The stack frame that this gate is within
+        CallingContext: stack[len(stack)-1].Id,
       })
 
       // Remove token that was just parsed.

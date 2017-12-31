@@ -29,19 +29,25 @@ func TestParsingAnd(t *testing.T) {
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: GROUND,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 3,
       Type: AND,
       Inputs: []*Wire{ &Wire{Id: 1}, &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 0,
     },
   }) {
     t.Error(fmt.Sprintf("Gates doesn't match! %+v", gates))
@@ -80,6 +86,8 @@ func TestParsingVariable(t *testing.T) {
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&[]Node{ast}, stack)
 
   // Verify error
@@ -91,14 +99,18 @@ func TestParsingVariable(t *testing.T) {
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: GROUND,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: AND,
       Inputs: []*Wire{ &Wire{Id: -1}, &Wire{Id: 1} },
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 0,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -142,6 +154,8 @@ func TestAssigningVariable(t *testing.T) {
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error
@@ -153,9 +167,11 @@ func TestAssigningVariable(t *testing.T) {
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: -1} },
+      CallingContext: 0,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -219,6 +235,8 @@ func TestAssigningVariableToInvokedBlock(t *testing.T) {
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error
@@ -230,21 +248,27 @@ func TestAssigningVariableToInvokedBlock(t *testing.T) {
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: BLOCK_INPUT,
       Label: "Input 0 into block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 1} },
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 3,
       Type: BLOCK_OUTPUT,
       Label: "Output 0 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -323,6 +347,8 @@ func TestAssigningVariableToInvokedBlockWithMultipleValues(t *testing.T) {
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error
@@ -334,27 +360,35 @@ func TestAssigningVariableToInvokedBlockWithMultipleValues(t *testing.T) {
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: BLOCK_INPUT,
       Label: "Input 0 into block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 1} },
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 3,
       Type: BLOCK_OUTPUT,
       Label: "Output 0 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 4,
       Type: BLOCK_OUTPUT,
       Label: "Output 1 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 4} },
+      CallingContext: 1,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -451,6 +485,8 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleTokens(t
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error
@@ -462,32 +498,42 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleTokens(t
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: BLOCK_INPUT,
       Label: "Input 0 into block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 1} },
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 3,
       Type: BLOCK_OUTPUT,
       Label: "Output 0 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 4,
       Type: BLOCK_OUTPUT,
       Label: "Output 1 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 4} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 5,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 5} },
+      CallingContext: 0,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -601,6 +647,8 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleInvocati
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error
@@ -612,50 +660,66 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleInvocati
   // Verify gates
   if !reflect.DeepEqual(gates, []*Gate{
     &Gate{
+      Id: 1,
       Type: SOURCE,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 2,
       Type: BLOCK_INPUT,
       Label: "Input 0 into block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 1} },
       Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 3,
       Type: BLOCK_OUTPUT,
       Label: "Output 0 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 4,
       Type: BLOCK_OUTPUT,
       Label: "Output 1 from block foo invocation 1",
       Inputs: []*Wire{ &Wire{Id: 2} },
       Outputs: []*Wire{ &Wire{Id: 4} },
+      CallingContext: 1,
     },
     &Gate{
+      Id: 5,
       Type: GROUND,
       Inputs: []*Wire{},
       Outputs: []*Wire{ &Wire{Id: 5} },
+      CallingContext: 0,
     },
     &Gate{
+      Id: 6,
       Type: BLOCK_INPUT,
       Label: "Input 0 into block foo invocation 2",
       Inputs: []*Wire{ &Wire{Id: 5} },
       Outputs: []*Wire{ &Wire{Id: 6} },
+      CallingContext: 2,
     },
     &Gate{
+      Id: 7,
       Type: BLOCK_OUTPUT,
       Label: "Output 0 from block foo invocation 2",
       Inputs: []*Wire{ &Wire{Id: 6} },
       Outputs: []*Wire{ &Wire{Id: 7} },
+      CallingContext: 2,
     },
     &Gate{
+      Id: 8,
       Type: BLOCK_OUTPUT,
       Label: "Output 1 from block foo invocation 2",
       Inputs: []*Wire{ &Wire{Id: 6} },
       Outputs: []*Wire{ &Wire{Id: 8} },
+      CallingContext: 2,
     },
   }) {
     // Dereference so we can see the contents of the pointers
@@ -724,8 +788,148 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleInvocati
   }
 }
 
-// block foo(a) { return a }
-func TestBlockDefinition(t *testing.T) {
+// block foo(a) {
+//   let b = (a and 0)
+//   return b
+// }
+// let a = foo(1)
+func TestAssigningVariableToInvokedBlockWithComplicatedBlock(t *testing.T) {
+  ast := []Node{
+    Node{Token: "ASSIGNMENT", Row: 3, Col: 1, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
+    Node{
+      Token: "INVOCATION",
+      Row: 3,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "foo"},
+      Children: &[]Node{
+        Node{Token: "BOOL", Row: 3, Col: 1, Data: map[string]interface{}{"Value": true}},
+      },
+    },
+  }
+
+  stack := []*StackFrame{
+    &StackFrame{
+      Blocks: []*Block{
+        &Block{
+          Name: "foo",
+          Content: &Node{
+            Token: "BLOCK",
+            Data: map[string]interface{}{
+              "Name": "foo",
+              "Params": "a",
+              "InputQuantity": 1,
+              "OutputQuantity": 1,
+            },
+            Children: &[]Node{
+              Node{Token: "ASSIGNMENT", Data: map[string]interface{}{"Names": "b", "Values": []Node{}}},
+              Node{Token: "GROUP", Children: &[]Node{
+                Node{Token: "OP_AND", Data: map[string]interface{}{
+                  "LeftHandSide": Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+                  "RightHandSide": Node{Token: "BOOL", Data: map[string]interface{}{"Value": false}},
+                }},
+              }},
+              Node{Token: "BLOCK_RETURN"},
+              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "b"}},
+            },
+          },
+        },
+      },
+    },
+  }
+
+  wireId = 0
+  gateId = 0
+  stackFrameId = 0
+  gates, wires, outputs, err := Parse(&ast, stack)
+
+  // Verify error
+  if err != nil {
+    t.Errorf(fmt.Sprintf("Error returned! %s", err))
+    return
+  }
+
+  // Verify gates
+  if !reflect.DeepEqual(gates, []*Gate{
+    &Gate{
+      Id: 1,
+      Type: SOURCE,
+      Inputs: []*Wire{},
+      Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
+    },
+    &Gate{
+      Id: 2,
+      Type: BLOCK_INPUT,
+      Label: "Input 0 into block foo invocation 1",
+      Inputs: []*Wire{ &Wire{Id: 1} },
+      Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
+    },
+    &Gate{
+      Id: 3,
+      Type: GROUND,
+      Inputs: []*Wire{},
+      Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
+    },
+    &Gate{
+      Id: 4,
+      Type: AND,
+      Inputs: []*Wire{ &Wire{Id: 2}, &Wire{Id: 3} },
+      Outputs: []*Wire{ &Wire{Id: 4} },
+      CallingContext: 1,
+    },
+    &Gate{
+      Id: 5,
+      Type: BLOCK_OUTPUT,
+      Label: "Output 0 from block foo invocation 1",
+      Inputs: []*Wire{ &Wire{Id: 4} },
+      Outputs: []*Wire{ &Wire{Id: 5} },
+      CallingContext: 1,
+    },
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []Gate{}
+    for _, gate := range gates {
+      deref = append(deref, *gate)
+    }
+    t.Error(fmt.Sprintf("Gates don't match! %+v", deref))
+  }
+
+  // Verify wires
+  if !reflect.DeepEqual(wires, []*Wire{
+    &Wire{Id: 1},
+    &Wire{Id: 2},
+    &Wire{Id: 2},
+    &Wire{Id: 3},
+    &Wire{Id: 4},
+    &Wire{Id: 4},
+    &Wire{Id: 4},
+    &Wire{Id: 5},
+    &Wire{Id: 5},
+  }) {
+    t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
+  }
+
+  // Verify outputs
+  if !reflect.DeepEqual(outputs, []*Wire{}) {
+    t.Error(fmt.Sprintf("Outputs don't match! %+v", gates))
+  }
+
+  // Ensure that the right variables are on the stack
+  for _, variable := range stack[0].Variables {
+    if variable.Name == "a" {
+      if variable.Value.Id != 5 {
+        t.Errorf("Variable a is attached to the wrong wire! (wire id=%d)", variable.Value.Id)
+      }
+      continue
+    }
+    t.Errorf(fmt.Sprintf("Unknown variable %s!", variable.Name))
+  }
+}
+
+// block foo(a) { return a a }
+func TestBlockDefinitionByItselfDoesntCreateGatesOrWires(t *testing.T) {
   ast := []Node{
     Node{
       Token: "BLOCK",
@@ -748,6 +952,8 @@ func TestBlockDefinition(t *testing.T) {
   }
 
   wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, outputs, err := Parse(&ast, stack)
 
   // Verify error

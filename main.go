@@ -78,7 +78,8 @@ func act(input string, tokenize bool, verbose bool) (*Summary, error) {
         }
         fmt.Printf(")")
 
-        fmt.Printf(` "%s"`, gate.Label)
+        fmt.Printf(` frame=%d`, gate.CallingContext)
+        fmt.Printf(` label="%s"`, gate.Label)
         fmt.Printf("\n")
       }
       fmt.Println("===")
@@ -130,6 +131,9 @@ func main() {
       buf.ReadFrom(r.Body)
       source := buf.String() // Does a complete copy of the bytes in the buffer.
 
+      wireId = 0
+      gateId = 0
+      stackFrameId = 0
       summary, err := act(source, *tokenize, *verbose)
       if err != nil {
         json.NewEncoder(w).Encode(map[string]string{"Error": err.Error()})
