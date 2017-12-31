@@ -393,8 +393,49 @@ func TestInvocation(t *testing.T) {
   }
 }
 
+// Comments
+func TestSingleLineComment(t *testing.T) {
+  result, err := Tokenizer(`// I am a comment`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "SINGLE_COMMENT",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Message": "I am a comment"},
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
 
+func TestMultiLineComment(t *testing.T) {
+  result, err := Tokenizer(`/* I am a multiline
+comment */`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "MULTI_COMMENT",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Message": "I am a multiline\ncomment"},
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
 
-//
-// INTERPRETER
-//
+func TestMultiLineCommentSingleLine(t *testing.T) {
+  result, err := Tokenizer(`/* I am a multiline comment but only on one line*/`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "MULTI_COMMENT",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Message": "I am a multiline comment but only on one line"},
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}

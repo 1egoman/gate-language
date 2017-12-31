@@ -11,6 +11,9 @@ var NO_DATA func([]string) map[string]interface{} = func(m []string) map[string]
   return map[string]interface{}{}
 }
 
+// A regular expression that matches whitespace at the start and end of a string.
+var MATCH_WHITESPACE_AT_ENDS *regexp.Regexp = regexp.MustCompile(`(^\s|\s$)`)
+
 type TokenType string
 const (
   SINGLE TokenType = "SINGLE"
@@ -32,9 +35,12 @@ var TOKENS []Token = []Token{
   Token{
     Name: "MULTI_COMMENT",
     Type: SINGLE,
-    Match: regexp.MustCompile(`^\/\*(.*)\*\/`),
+    Match: regexp.MustCompile(`(?s)^/\*(.*)\*/`),
     GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{ "Message": match[1] };
+      return map[string]interface{}{
+        // Remove leading and trailing whitespace from comment.
+        "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
+      };
     },
   },
   Token{
@@ -42,7 +48,10 @@ var TOKENS []Token = []Token{
     Type: SINGLE,
     Match: regexp.MustCompile(`^\/\/([^\n]*)`),
     GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{ "Message": match[1] };
+      return map[string]interface{}{
+        // Remove leading and trailing whitespace from comment.
+        "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
+      };
     },
   },
 
