@@ -57,7 +57,8 @@ type StackFrame struct {
   Blocks []*Block
 }
 
-var BUILTIN_FUNCTION_NAMES []string = []string{"print"}
+var BUILTIN_FUNCTION_NAMES []string = []string{"led", "wave", "momentary", "toggle"}
+var BUILTIN_FUNCTION_RETURN_NUMBER []int=[]int{0    , 1     , 1          , 1}
 
 func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, error) {
   gates := []*Gate{}
@@ -350,10 +351,64 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     }
 
   case "INVOCATION":
-    // Look through the stack, from top to bottom, to find an identifier that matches.
     var block *Block
 
     if value, ok := input.Data["Name"].(string); ok {
+      // Check to see if the invocation refers to a builtin function instead. These are converted
+      // into a special gate type, `BUILTIN_FUNCTION`
+      for builtinIndex, builtinName := range BUILTIN_FUNCTION_NAMES {
+        if value == builtinName {
+          var builtinInputs []*Wire = []*Wire{}
+
+          // Add a wire to each input to the `builtinInputs` slice.
+          for _, child := range *input.Children {
+            // Execute each parameter passed into the invocation to get an output wire to its result.
+            paramGates, paramWires, paramOutputs, err := Parse(&[]Node{child}, stack)
+
+            // Bubble errors up from the invocation
+            if err != nil {
+              return nil, nil, nil, err
+            }
+
+            // Add gates and generated to master collections.
+            gates = append(gates, paramGates...)
+            wires = append(wires, paramWires...)
+            builtinInputs = append(builtinInputs, paramOutputs...)
+          }
+
+          // Create a new gate with those inputs from `builtinInputs`
+          gateId += 1
+          gate := &Gate{
+            Id: gateId,
+            Type: BUILTIN_FUNCTION,
+            Label: builtinName,
+
+            Inputs: builtinInputs,
+            Outputs: []*Wire{},
+
+            // The stack frame that this gate is within
+            CallingContext: stack[len(stack)-1].Id,
+          }
+          gates = append(gates, gate)
+
+          // Create a new wire for each output, and add each to the outputs.
+          for i := 0; i < BUILTIN_FUNCTION_RETURN_NUMBER[builtinIndex]; i++ {
+            wireId += 1
+            wire := &Wire{ Id: wireId }
+            wires = append(wires, wire)
+
+            gate.Outputs = append(gate.Outputs, wire)
+          }
+
+          // Remove token that was just parsed.
+          *inputs = (*inputs)[1:]
+
+          return gates, wires, gate.Outputs, nil
+        }
+      }
+      // (end builtin code)
+
+      // Look through the stack, from top to bottom, to find an identifier that matches.
       BlockOuter:
       for i := len(stack) - 1; i >= 0; i-- {
         for _, blk := range stack[i].Blocks {
