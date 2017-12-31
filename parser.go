@@ -6,13 +6,13 @@ import (
   "strings"
 )
 
+var wireId int = 0
 type Wire struct {
   Id int
   Desc string
   Start *Gate
   End *Gate
 }
-var wireId int = 0
 
 type GateType string
 const (
@@ -63,7 +63,6 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
   switch input.Token {
   case "SINGLE_COMMENT": fallthrough
   case "MULTI_COMMENT":
-
     // Remove token that was just parsed.
     *inputs = (*inputs)[1:]
     break
