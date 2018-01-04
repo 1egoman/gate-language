@@ -474,9 +474,20 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
             CallingContext: stackFrameId + 1,
           })
 
+          params := strings.Split(block.Content.Data["Params"].(string), " ")
+          if (len(params) - 1) < numberOfVars + 1 {
+            fmt.Println(block.Content)
+            return nil, nil, nil, errors.New(fmt.Sprintf(
+              "The invocation at %d:%d (trying to invoke %s) is invoking the block with too many parameters (expected %d, received %d). Stop.\n",
+              input.Row,
+              input.Col,
+              block.Name,
+              block.Content.Data["InputQuantity"],
+              len(*input.Children),
+            ))
+          }
           vars = append(vars, &Variable{
-            // Name: fmt.Sprintf("__value_%d_passed_into_%s", ct, block.Name),
-            Name: strings.Split(block.Content.Data["Params"].(string), " ")[numberOfVars+1],
+            Name: params[numberOfVars+1],
             Value: wire,
           })
         }
