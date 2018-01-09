@@ -209,6 +209,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
 
   wireEnterSelection.append('path')
     .attr('fill', 'transparent')
+    .attr('id', 'wire')
     .attr('stroke', 'black')
     .attr('stroke-width', 2)
     .attr('data-wire-id', d => d.id)

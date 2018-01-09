@@ -255,7 +255,9 @@ zoomSlider.addEventListener('input', zoomViewbox);
 // Adjust the position of the viewbox when the user drags around the svg canvas.
 let moveOnSvg = false;
 viewport.addEventListener('mousedown', event => {
-  moveOnSvg = event.target.getAttribute('id') === 'viewport' || event.target.getAttribute('id') === 'block';
+  moveOnSvg = event.target.getAttribute('id') === 'viewport' ||
+    event.target.getAttribute('id') === 'block' ||
+    event.target.getAttribute('id') === 'wire';
 
   if (moveOnSvg) { // Deselect all gates if clicking on the viewport background or a block.
     data.Gates.forEach(i => {
