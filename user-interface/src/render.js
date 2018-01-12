@@ -1,6 +1,32 @@
 import * as d3 from "d3";
 import { generateBlocksFromGates } from './block-helpers';
 
+import * as gatesSource from './gates/source';
+import * as gatesGround from './gates/ground';
+import * as gatesAnd from './gates/and';
+import * as gatesOr from './gates/or';
+import * as gatesNot from './gates/not';
+import * as gatesBlockInput from './gates/block-input';
+import * as gatesBlockOutput from './gates/block-output';
+import * as gatesBuiltinMomentary from './gates/builtin-momentary';
+import * as gatesBuiltinToggle from './gates/builtin-toggle';
+import * as gatesBuiltinLed from './gates/builtin-led';
+
+const GATE_RENDERERS = {
+  'SOURCE': gatesSource,
+  'GROUND': gatesGround,
+  'AND': gatesAnd,
+  'OR': gatesOr,
+  'NOT': gatesNot,
+  'BLOCK_INPUT': gatesBlockInput,
+  'BLOCK_OUTPUT': gatesBlockOutput,
+  'BUILTIN_FUNCTION': {
+    'momentary': gatesBuiltinMomentary,
+    'toggle': gatesBuiltinToggle,
+    'led': gatesBuiltinLed,
+  },
+};
+
 const GATE_WIDTH = 30;
 const GATE_HEIGHT = 50;
 const BLOCK_PADDING = 10;
@@ -31,7 +57,7 @@ function renderGates(gateGroup, {gates, renderFrame}) {
       if (!d3.event.shiftKey) {
         // Clicking on a gate selects it.
         d.active = true;
-        renderFrame([d]);
+        renderFrame([d.Id]);
       }
     })
     .on('mousedown', function(d) {
@@ -40,7 +66,7 @@ function renderGates(gateGroup, {gates, renderFrame}) {
         const clickHandler = BUILTIN_GATE_MOUSEDOWN_HANDLERS[d.Label];
         if (clickHandler) {
           clickHandler(d);
-          renderFrame([d]);
+          renderFrame([d.Id]);
         }
       }
     })
@@ -50,18 +76,31 @@ function renderGates(gateGroup, {gates, renderFrame}) {
         const mouseupHandler = BUILTIN_GATE_MOUSEUP_HANDLERS[d.Label];
         if (mouseupHandler) {
           mouseupHandler(d);
-          renderFrame([d]);
+          renderFrame([d.Id]);
         }
       }
     })
-  gatesSelectionEnter.append('path')
-    .attr('fill', 'transparent')
-    .attr('stroke', 'black')
-    .attr('stroke-width', 2)
+  gatesSelectionEnter.append('g')
+    .attr('class', 'gate-contents')
   gatesSelectionEnter.append('text')
     .attr('fill', 'black')
     .attr('transform', 'translate(0,-5)')
     .attr('pointer-events', 'none')
+
+  gatesSelectionEnter.select('.gate-contents')
+    .attr('data-type', function(d) {
+      let renderer = GATE_RENDERERS[d.Type];
+      if (d.Type === 'BUILTIN_FUNCTION') {
+        renderer = renderer[d.Label];
+      }
+      if (renderer) {
+        renderer.insert(d3.select(this), d);
+      } else {
+        // Draw default gate shape
+        d3.select(this).append('path');
+      }
+      return d.Type;
+    });
 
   const gatesMergeSelection = gatesSelectionEnter.merge(gatesSelection);
   gatesMergeSelection
@@ -69,88 +108,22 @@ function renderGates(gateGroup, {gates, renderFrame}) {
       return `translate(${d.xPosition || 0},${d.yPosition || 0})`;
     });
 
-  gatesMergeSelection.select('path')
-    .attr('stroke', d => d.active ? 'green' : 'black')
-    .attr('fill', d => {
-      if (d.active) {
-        return 'green';
-      } else if (d.Type === 'SOURCE') {
-        return 'red';
-      } else if (d.Type === 'GROUND') {
-        return 'black';
-      } else if (d.Type === 'BLOCK_INPUT') {
-        return 'red';
-      } else if (d.Type === 'BLOCK_OUTPUT') {
-        return 'blue';
-
-      // For builtins
-      } else if (d.Type === 'BUILTIN_FUNCTION' && d.state === 'on') {
-        return 'magenta';
-      } else if (d.Type === 'BUILTIN_FUNCTION' && d.state !== 'on') {
-        return 'silver';
-
+  gatesMergeSelection.select('.gate-contents')
+    .attr('data-type', function(d) {
+      let renderer = GATE_RENDERERS[d.Type];
+      if (d.Type === 'BUILTIN_FUNCTION') {
+        renderer = renderer[d.Label];
+      }
+      if (renderer) {
+        renderer.merge(d3.select(this), d);
       } else {
-        return 'transparent';
+        // Update default gate shape
+        d3.select(this).select('path')
+          .attr('fill', d => d.active ? 'green' : 'silver')
+          .attr('d', `M0,0 H30 V50 H0 V0`);
       }
-    })
-    .attr('d', d => {
-      switch (d.Type) {
-      case 'NOT':
-        return `M17.2365571,9.47311425 L30,35 L0,35 L12.7634429,9.47311425
-          C11.1248599,8.65222581 10,6.95747546 10,5 C10,2.23857625 12.2385763,0 15,0
-          C17.7614237,0 20,2.23857625 20,5 C20,6.95747546 18.8751401,8.65222581
-          17.2365571,9.47311425 Z`;
-      case 'AND':
-        return `M0,15 C0,6.71572875 6.71572875,0 15,0 C23.2842712,0
-          30,6.71572875 30,15 L30,45 L0,45 L0,15 Z`;
-      case 'OR':
-        return `M29.9995379,44.8264114 C29.3110604,43.8025102 22.8584163,43 15,43
-          C7.55891826,43 1.37826165,43.7195362 0.158268034,44.6652435 C0.128188016,44.6524168
-          0.0986130759,44.6379035 0.0695437648,44.6217245 C-0.0916881233,44.7417332
-          -0.134974039,44.8705056 -0.0603139832,45.0080419 C-0.0603139832,44.9468198
-          -0.0397654827,44.8862377 0.000462099566,44.8264114 L0.0690459207,44.6214473
-          C-2.07813531,43.4247556 -1.46553035,33.1366252 2.12962531,22.0718738
-          C5.53049733,11.6050659 11.8324838,1.02434799 14.6220414,0.0576633394
-          C14.7378215,-0.136928788 14.8847045,-0.266583994 15.0650959,-0.325196716
-          C17.4041668,-1.08520694 24.4913873,10.3872278 28.1754469,21.7255972
-          C31.8595064,33.0639667 32.4127184,43.5864935 30.0736474,44.3465038 C30.001938,44.3698036
-          29.9283427,44.3836574 29.8529384,44.3882959 L29.9995379,44.8264114 Z`;
-      case 'SOURCE':
-        return `M10,0 H20 V22 H30 V34 H20 V50 H10 V32 H0 V22 H10 V0`;
-      case 'BLOCK_INPUT':
-      case 'BLOCK_OUTPUT':
-        return `M0,0 H20 V20 H0 V0`;
-      case 'BUILTIN_FUNCTION':
-        switch (d.Label) {
-        case 'toggle':
-          if (d.state === 'on') {
-            return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M9,14.5 C5.96243388,14.5
-            3.5,12.0375661 3.5,9 C3.5,5.96243388 5.96243388,3.5 9,3.5 C12.0375661,3.5
-            14.5,5.96243388 14.5,9 C14.5,12.0375661 12.0375661,14.5 9,14.5 Z`;
-          } else {
-            // Circle on bottom
-            return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M21,14.5
-            C17.9624339,14.5 15.5,12.0375661 15.5,9 C15.5,5.96243388 17.9624339,3.5 21,3.5
-            C24.0375661,3.5 26.5,5.96243388 26.5,9 C26.5,12.0375661 24.0375661,14.5 21,14.5 Z`
-          }
-        case 'momentary':
-          // 'M' with no circle
-          return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M14.6385883,7.38237665
-          L18.3068605,3.71410446 L23.4263057,3.71410446 L23.4263057,18.4556447
-          L19.0622929,18.4556447 L19.0622929,9.2995031 L14.5542,13.807596
-          L10.0133185,9.26671443 L10.0133185,18.8044706 L6.5,18.8044706 L6.5,3.5
-          L10.7562116,3.5 L14.6385883,7.38237665 Z`
-        case 'led':
-          return `M15,29.5 C23.0081289,29.5 29.5,23.0081289 29.5,15 C29.5,6.99187113
-          23.0081289,0.5 15,0.5 C6.99187113,0.5 0.5,6.99187113 0.5,15 C0.5,23.0081289
-          6.99187113,29.5 15,29.5 Z`;
-        default:
-          return `M0,0 H30 V50 H0 V0`;
-        }
-      default:
-        return `M0,0 H30 V50 H0 V0`;
-      }
-    })
+      return d.Type;
+    });
 
   // gatesMergeSelection.select('text')
   //   .text(d => `${d.Id} ${d.CallingContext}`);
