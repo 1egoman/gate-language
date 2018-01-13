@@ -51,13 +51,19 @@ block counter(clock reset) {
   led(nq1)
   let q2 nq2 = tflipflop(q1 reset)
   led(nq2)
-  let q3 nq3 = tflipflop(q1 and q2 reset)
+  let q3 nq3 = tflipflop((q1 and q2) reset)
   led(nq3)
-  let q4 nq4 = tflipflop((q1 and q2) and q3 reset)
+  let q4 nq4 = tflipflop(((q1 and q2) and q3) reset)
   led(nq4)
+  
+  return nq1 nq2 nq3 nq4
 }
 
-counter(momentary() momentary())
+let q1 q2 q3 q4 = counter(momentary() momentary())
+led(q1)
+led(q2)
+led(q3)
+led(q4)
     `,
     mode: 'bitlang',
     theme: 'monokai',
@@ -129,42 +135,59 @@ const compile = debounce(function compile(source) {
     let spacingByContext = {};
     data.Gates.forEach(gate => {
       // Calculate the width of this gate.
-      let gateWidth = 40;
-      if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
-        gateWidth = 100;
+      let gateWidth = 30;
+      if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        gateWidth = 20;
       }
+      if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
+        gateWidth = 80;
+      }
+      gate.width = gateWidth;
 
       const context = getContext(gate.CallingContext);
       if (context) {
-        if (context.gateCount) {
-          if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
-            // All inputs and outputs are on the top border.
-            spacingByContext[context.Id] = spacingByContext[context.Id] || 0
-            gate.xPosition = context.x + spacingByContext[context.Id]
-            spacingByContext[context.Id] += gateWidth
-            gate.yPosition = context.y
-            context.gateCount += 1
-          } else {
-            // All the rest of the gates in a line below the inputs and outputs
-            spacingByContext[context.Id] = spacingByContext[context.Id] || 0
-            gate.xPosition = context.x + spacingByContext[context.Id]
-            spacingByContext[context.Id] += gateWidth
-            gate.yPosition = context.y + 100
-            context.gateCount += 1
-          }
+        if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+          // All inputs are positioned on the left border, and all outputs on the right
+          spacingByContext[context.Id] = spacingByContext[context.Id] || 0
+          gate.xPosition = context.x + (gate.Type === 'BLOCK_OUTPUT' ? context.width : 0)
+          gate.yPosition = context.y + spacingByContext[context.Id]
+          context.gateCount += 1
+
+          spacingByContext[context.Id] += gateWidth
         } else {
-          // Position the first gate in the lower right corner
-          gate.xPosition = context.x
-          gate.yPosition = context.y
-          context.gateCount = 1
+          // All the rest of the gates in a line below the inputs and outputs
+          spacingByContext[context.Id] = spacingByContext[context.Id] || 0
+          gate.xPosition = context.x + spacingByContext[context.Id]
+          gate.yPosition = context.y + 100
+          context.gateCount += 1
+          spacingByContext[context.Id] += gateWidth
         }
       } else {
         // All the rest of the gates in a line below the inputs and outputs
         spacingByContext[null] = spacingByContext[null] || 0
         gate.xPosition = spacingByContext[null];
-        spacingByContext[null] += gateWidth
         gate.yPosition = 0
+        spacingByContext[null] += gateWidth
       }
+    });
+
+    // Move inputs and outputs closer to the gates that they conenct to
+    data.Gates.forEach(gate => {
+      if (!(gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT')) {
+        return;
+      }
+
+      const context = getContext(gate.CallingContext);
+
+      const gatesInContext = data.Gates
+        .filter(i => i.Type === gate.Type && i.CallingContext.toString() === context.Id.toString());
+
+      const positionOfGateInBlock = gatesInContext.findIndex(i => i.Id === gate.Id);
+
+      if (gate.Type === 'BLOCK_OUTPUT') {
+        gate.xPosition -= 40;
+      }
+      gate.yPosition = context.y + positionOfGateInBlock * 30;
     });
 
     // Move gates closer to their inputs and outputs
@@ -182,11 +205,50 @@ const compile = debounce(function compile(source) {
         Math.pow(gateConnectedToInput.yPosition - gate.yPosition, 2),
       );
 
-      if (wireLength > 300) {
-        gate.xPosition = gateConnectedToInput.xPosition;
-        gate.yPosition = gateConnectedToInput.yPosition - 100;
+      if (wireLength > 200) {
+        gate.xPosition = gateConnectedToInput.xPosition + 50;
+        gate.yPosition = gateConnectedToInput.yPosition + 100;
       }
     });
+
+    // Final positioning step - make sure that gates don't intersect
+    data.Gates.forEach((gate, index) => {
+      if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        return;
+      }
+
+      data.Gates.slice(index + 1)
+        .filter(i => !(i.Type === 'BLOCK_INPUT' || i.Type === 'BLOCK_OUTPUT'))
+        .filter(i =>  // Find other gates that intersect with this gate.
+          i.xPosition >= gate.xPosition && i.xPosition <= gate.xPosition + 30 &&
+          i.yPosition >= gate.yPosition && i.yPosition <= gate.yPosition + 30
+        ).forEach((i, ct) => {
+          i.xPosition += ((ct + 1) * 40) 
+          // T flipflops are wider than normal gates, so add a bit of padding.
+          if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
+            i.xPosition += 60
+          }
+          i.yPosition += 10
+        });
+    });
+
+    // Rotate gates to try to ensure that they are optimally placed
+    data.Gates.forEach(gate => {
+      if (gate.Outputs.length === 0 || gate.Type === 'BUILTIN_FUNCTION' || gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        return;
+      }
+
+      const gateConnectedToInput = data.Gates.find(g => {
+        return g.Inputs.map(k => k.Id).indexOf(gate.Outputs[0].Id) !== -1;
+      });
+
+      if (gateConnectedToInput && gateConnectedToInput.yPosition > gate.yPosition + 50) {
+        gate.rotate = 180;
+      } else {
+        gate.rotate = 0;
+      }
+    });
+
 
     renderFrame(data.Gates.map(i => i.Id));
   }).catch(err => {

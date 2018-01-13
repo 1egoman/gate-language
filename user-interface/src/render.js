@@ -116,6 +116,13 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
 
   // FIXME: help with the below. I'm hacking around d3 and I don't like it.
   gatesMergeSelection.select('.gate-contents')
+    .attr('transform', d => {
+      if (d.rotate === 180) {
+        return `rotate(180, ${d.width/2} ${GATE_HEIGHT/2})`;
+        } else {
+          return '';
+        }
+    })
     .call(function(selection) {
       selection.each(function(d, i) {
         const elem = d3.select(this);
@@ -146,8 +153,8 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
     .attr('data-label', d => d.Label)
     .attr('data-type', d => d.Type)
 
-  // gatesMergeSelection.select('text')
-  //   .text(d => `${d.Id} ${d.CallingContext}`);
+  gatesMergeSelection.select('text')
+    .text(d => `${d.Id} ${d.CallingContext}`);
 
   gatesSelection.exit().remove()
 }
@@ -187,7 +194,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
     const startPadding = spacingBetweenInputs / 2;
     return {
       x: gate.xPosition + startPadding + (spacingBetweenInputs * inputNumber),
-      y: gate.yPosition + (gate.Type === 'NOT' ? 40 : GATE_HEIGHT) - 6,
+      y: gate.yPosition - (gate.rotate === 180 ? 40 : 0) + (gate.Type === 'NOT' ? 40 : GATE_HEIGHT) - 6,
     }
   }
 
@@ -206,7 +213,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
     const startPadding = spacingBetweenOutputs / 2;
     return {
       x: gate.xPosition + startPadding + (spacingBetweenOutputs * outputNumber),
-      y: gate.yPosition,
+      y: gate.yPosition + (gate.rotate === 180 ? 50 : 0),
     }
   }
 
