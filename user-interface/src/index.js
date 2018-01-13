@@ -46,15 +46,18 @@ function createEditor(element) {
   const editor = CodeMirror(element, {
     lineNumbers: true,
     value: `
-let clk = momentary()
-let q1 nq1 = tflipflop(clk)
-led(nq1)
-let q2 nq2 = tflipflop(q1)
-led(nq2)
-let q3 nq3 = tflipflop(q1 and q2)
-led(nq3)
-let q4 nq4 = tflipflop((q1 and q2) and q3)
-led(nq4)
+block counter(clock reset) {
+  let q1 nq1 = tflipflop(clock reset)
+  led(nq1)
+  let q2 nq2 = tflipflop(q1 reset)
+  led(nq2)
+  let q3 nq3 = tflipflop(q1 and q2 reset)
+  led(nq3)
+  let q4 nq4 = tflipflop((q1 and q2) and q3 reset)
+  led(nq4)
+}
+
+counter(momentary() momentary())
     `,
     mode: 'bitlang',
     theme: 'monokai',
@@ -190,6 +193,7 @@ const compile = debounce(function compile(source) {
     console.error(err.stack);
     // Set a global error variable
     error = err.message;
+    renderFrame([]);
   });
 }, 1000);
 

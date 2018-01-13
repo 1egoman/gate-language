@@ -109,6 +109,7 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
 
   const gatesMergeSelection = gatesSelectionEnter.merge(gatesSelection);
   gatesMergeSelection
+    .attr('data-id', d => d.Id)
     .attr('transform', d => {
       return `translate(${d.xPosition || 0},${d.yPosition || 0})`;
     });
@@ -253,6 +254,8 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
     .attr('data-wire-id', d => d.id)
 
   const wireMergeSelection = wireEnterSelection.merge(wiresSelection);
+  wireMergeSelection
+    .attr('data-id', d => d.Id)
   wireMergeSelection.select('path')
     .attr('d', d => d.path)
     .attr('stroke', d => {
@@ -336,6 +339,7 @@ function renderBlocks(blockGroup, {gates, contexts}) {
   const blockMergeSelection = blocksSelection.merge(blocksSelection);
   blockMergeSelection
     .attr('class', d => `block block-${(d.label || '').replace(/\s/g, '-').toLowerCase()}`)
+    .attr('data-id', d => d.Id)
   blockMergeSelection.select('rect')
     .attr('x', d => d.x)
     .attr('y', d => d.y)
