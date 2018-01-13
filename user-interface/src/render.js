@@ -90,17 +90,21 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
 
   gatesSelectionEnter.select('.gate-contents')
     .attr('data-type', function(d) {
-      let renderer = GATE_RENDERERS[d.Type];
-      if (d.Type === 'BUILTIN_FUNCTION') {
-        renderer = renderer[d.Label];
-      }
-      if (renderer) {
-        renderer.insert(d3.select(this), d);
-      } else {
-        // Draw default gate shape
-        d3.select(this).append('path');
-      }
       return d.Type;
+    })
+    .call(function(selection) {
+      selection.each(function(d, i) {
+        let renderer = GATE_RENDERERS[d.Type];
+        if (d.Type === 'BUILTIN_FUNCTION') {
+          renderer = renderer[d.Label];
+        }
+        if (renderer) {
+          renderer.insert(d3.select(this), d);
+        } else {
+          // Draw default gate shape
+          d3.select(this).append('path');
+        }
+      });
     });
 
   const gatesMergeSelection = gatesSelectionEnter.merge(gatesSelection);
@@ -109,22 +113,37 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
       return `translate(${d.xPosition || 0},${d.yPosition || 0})`;
     });
 
+  // FIXME: help with the below. I'm hacking around d3 and I don't like it.
   gatesMergeSelection.select('.gate-contents')
-    .attr('data-type', function(d) {
-      let renderer = GATE_RENDERERS[d.Type];
-      if (d.Type === 'BUILTIN_FUNCTION') {
-        renderer = renderer[d.Label];
-      }
-      if (renderer) {
-        renderer.merge(d3.select(this), d, {gates, wires});
-      } else {
-        // Update default gate shape
-        d3.select(this).select('path')
-          .attr('fill', d => d.active ? 'green' : 'silver')
-          .attr('d', `M0,0 H30 V50 H0 V0`);
-      }
-      return d.Type;
-    });
+    .call(function(selection) {
+      selection.each(function(d, i) {
+        const elem = d3.select(this);
+        const oldType = elem.attr('data-type') + ' ' + elem.attr('data-label');
+        const newType = d.Type + ' ' + d.Label;
+
+        // Find a renderer for the data item.
+        let renderer = GATE_RENDERERS[d.Type];
+        if (d.Type === 'BUILTIN_FUNCTION') {
+          renderer = renderer[d.Label];
+        }
+
+        if (!renderer) {
+          return
+        }
+
+        // If the item's type has changed, then delete everything inside of `.gate-contents` and
+        // redraw it.
+        if (oldType !== ' ' && oldType !== newType) {
+          elem.selectAll('*').remove()
+          renderer.insert(elem, d);
+        }
+
+        // Then, update the gate contents.
+        renderer.merge(elem, d, {gates, wires});
+      });
+    })
+    .attr('data-label', d => d.Label)
+    .attr('data-type', d => d.Type)
 
   // gatesMergeSelection.select('text')
   //   .text(d => `${d.Id} ${d.CallingContext}`);
