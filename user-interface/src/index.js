@@ -294,7 +294,15 @@ function renderFrame(updatedGateIds) {
               }
             } else if (['tflipflop'].indexOf(gate.Label) >= 0) {
               const powered = getWire(gate.Inputs[0].Id);
+              let r = false, s = false;
+              if (gate.Inputs.length > 1) {
+                s = getWire(gate.Inputs[1].Id);
+              }
+              if (gate.Inputs.length > 2) {
+                r = getWire(gate.Inputs[2].Id);
+              }
 
+              // If power was received and the state wasn't already flipped, do this now.
               if (powered && !gate._poweredflag) {
                 gate._poweredflag = true;
                 gate.state = gate.state === 'on' ? 'off' : 'on';
@@ -302,14 +310,21 @@ function renderFrame(updatedGateIds) {
                 gate._poweredflag = false
               }
 
+              if (r) {
+                gate.state = 'off';
+              }
+              if (s) {
+                gate.state = 'on';
+              }
+
               if (gate.state === 'on') {
                 setWire(gate.Outputs[0].Id, true);
-                if (gate.Outputs.length > 1) {
+                if (gate.Outputs.length > 1) { /* set not q if passed */
                   setWire(gate.Outputs[1].Id, false);
                 }
               } else {
                 setWire(gate.Outputs[0].Id, false);
-                if (gate.Outputs.length > 1) {
+                if (gate.Outputs.length > 1) { /* set not q if passed */
                   setWire(gate.Outputs[1].Id, true);
                 }
               }
