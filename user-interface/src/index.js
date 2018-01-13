@@ -11,8 +11,6 @@ import renderViewport from './render';
 // import deepDiff from 'deep-diff';
 import debounce from 'lodash.debounce';
 
-import { generateBlocksFromGates } from './block-helpers';
-
 import registerServiceWorker from './registerServiceWorker';
 registerServiceWorker();
 
@@ -47,77 +45,17 @@ function createEditor(element) {
   // Create editor
   const editor = CodeMirror(element, {
     lineNumbers: true,
-    // value: `let a = toggle()\nled(a)`,
-    // value: `let a = toggle()\nlet b = toggle()\nled(a and b)`,
-//     value: `
-// block foo(a) {
-//   let result = ((a and 1) or 0)
-//   return result
-// }
-//
-// block bla(c) {
-//   return (c and foo(c))
-// }
-//
-// block invert(b) {
-//   let v = foo(b)
-//   let result = (v or 0)
-//   return result
-// }
-// led(invert(toggle()))
-//     
-//     
-//     
-//     `,
     value: `
-// A jk-flip-flop is a latch that takes two inputs - a and b.
-// When a signal is provided to either input, the latch persists
-// that state and outputs it on its only output, q.
-block sr_latch(a b) {
-  let nq = (not (a or q))
-  let q = (not (b or nq))
-  return q
-}
-
-// A jk-flip-flop that returns references to both states
-// of the flip flop (ie, both q and not q)
-block sr_latch_2(a b) {
-  let nq = (not (a or q))
-  let q = (not (b or nq))
-  return q nq
-}
-
-block d_flipflop(d clk) {
-  let a = ((d and clk))
-  let b = (((not d) and clk))
-
-  // Latch part of flip flop - this is a jk flip flop!
-  let result = sr_latch(a b)
-  return result
-}
-
-block d_flipflop_2(d clk) {
-  let a = ((d and clk))
-  let b = (((not d) and clk))
-
-  // Latch part of flip flop - this is a jk flip flop!
-  let q nq = sr_latch_2(a b)
-  return q nq
-}
-
-block t_flipflop(t clock) {
-  let switch = (t and clock)
-  let q nq = sr_latch_2((nq and switch) (q and switch))
-  return q
-}
-
-block main() {
-  led(t_flipflop(1 toggle()))
-  led(t_flipflop(1 toggle()))
-  led(t_flipflop(1 toggle()))
-}
-main()
-`,
+let clk = momentary()
+let q1 nq1 = tflipflop(clk)
+led(nq1)
+let q2 nq2 = tflipflop(q1)
+led(nq2)
+let q3 nq3 = tflipflop(q1 and q2)
+led(nq3)
+let q4 nq4 = tflipflop((q1 and q2) and q3)
+led(nq4)
+    `,
     mode: 'bitlang',
     theme: 'monokai',
   });
@@ -185,19 +123,27 @@ const compile = debounce(function compile(source) {
       console.log('Width', context.width, 'Height', context.height);
     });
 
-    let globalGateCount = 0;
+    let spacingByContext = {};
     data.Gates.forEach(gate => {
+      // Calculate the width of this gate.
+      let gateWidth = 40;
+      if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
+        gateWidth = 100;
+      }
+
       const context = getContext(gate.CallingContext);
       if (context) {
         if (context.gateCount) {
           if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
             // All inputs and outputs are on the top border.
-            gate.xPosition = context.x + (context.gateCount * 40)
+            spacingByContext[context.Id] = (spacingByContext[context.Id] || 0) + gateWidth
+            gate.xPosition = context.x + spacingByContext[context.Id]
             gate.yPosition = context.y
             context.gateCount += 1
           } else {
             // All the rest of the gates in a line below the inputs and outputs
-            gate.xPosition = context.x + (context.gateCount * 40)
+            spacingByContext[context.Id] = (spacingByContext[context.Id] || 0) + gateWidth
+            gate.xPosition = context.x + spacingByContext[context.Id]
             gate.yPosition = context.y + 100
             context.gateCount += 1
           }
@@ -208,76 +154,35 @@ const compile = debounce(function compile(source) {
           context.gateCount = 1
         }
       } else {
-        // Position gates in the global scop in the upper left corner
-        gate.xPosition = globalGateCount * 40
+        // All the rest of the gates in a line below the inputs and outputs
+        spacingByContext[null] = (spacingByContext[null] || 0) + gateWidth
+        gate.xPosition = spacingByContext[null];
         gate.yPosition = 0
-        globalGateCount += 1
       }
     });
 
-    // Position each gate within its block
-    /*
-    blocks.forEach(block => {
-      let gatePositionX = block.upperLeftBound[0],
-          gatePositionY = block.upperLeftBound[1];
-
-      // block.inputs.forEach(inp => {
-      //   inp.xPosition = 0//gatePositionX;
-      //   inp.yPosition = 0//gatePositionY;
-      //   gatePositionX += 30;
-      //   if (gatePositionX > block.lowerRightBound[0]) {
-      //     gatePositionX = 0;
-      //     gatePositionY += 100;
-      //   }
-      // });
-      //
-      // gatePositionX = block.upperLeftBound[0];
-      // gatePositionY = block.lowerRightBound[1];
-      // block.outputs.forEach(out => {
-      //   out.xPosition = 0 //gatePositionX;
-      //   out.yPosition = 0 //gatePositionY;
-      //   gatePositionX += 30;
-      //   if (gatePositionX > block.lowerRightBound[0]) {
-      //     gatePositionX = 0;
-      //     gatePositionY += 100;
-      //   }
-      // });
-
-      gatePositionX = block.upperLeftBound[0];
-      gatePositionY = block.upperLeftBound[1];
-      [...block.contents, ...block.inputs, ...block.outputs].forEach(gate => {
-        console.log('SETTING GATE', gate);
-        gate.xPosition = gatePositionX;
-        gate.yPosition = gatePositionY;
-        gatePositionX += 40;
-
-        // console.log(block.label, gate, gatePositionX, block.lowerRightBound[0])
-        if (gatePositionX > block.lowerRightBound[0]) {
-          gatePositionX = block.upperLeftBound[0];
-          gatePositionY += 100;
-        }
-      });
-      if (block.contents.length > 0) {
-        block.contents[0].yPosition = block.lowerRightBound[1]
-        block.outputs[block.outputs.length-1].xPosition = block.lowerRightBound[0]
-      }
-    });
-
-    // Loop through each block, and if it doesn't already have an x or y position then it must be in
-    // the global space.
-    let gatePositionX = 0, gatePositionY = 500;
+    // Move gates closer to their inputs and outputs
     data.Gates.forEach(gate => {
-      if (gate.xPosition === undefined || gate.yPosition === undefined) {
-        gate.xPosition = 0//gatePositionX
-        gate.yPosition = 0//gatePositionY
-        gate.xPosition = gatePositionX
-        gate.yPosition = gatePositionY
-        gatePositionX += 50
+      if (gate.Inputs.length === 0 || gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
+        return;
       }
-    })
-    */
 
-    renderFrame(data.Gates);
+      const gateConnectedToInput = data.Gates.find(g => {
+        return g.Outputs.map(k => k.Id).indexOf(gate.Inputs[0].Id) !== -1;
+      });
+
+      const wireLength = Math.sqrt(
+        Math.pow(gateConnectedToInput.xPosition - gate.xPosition, 2),
+        Math.pow(gateConnectedToInput.yPosition - gate.yPosition, 2),
+      );
+
+      if (wireLength > 300) {
+        gate.xPosition = gateConnectedToInput.xPosition;
+        gate.yPosition = gateConnectedToInput.yPosition - 100;
+      }
+    });
+
+    renderFrame(data.Gates.map(i => i.Id));
   }).catch(err => {
     console.error(err.stack);
     // Set a global error variable
@@ -291,7 +196,7 @@ Object.defineProperty(window, 'gates', {
   },
   set: function(value) {
     data.Gates = value;
-    renderFrame();
+    renderFrame(data.Gates.map(i => i.Id));
   },
 })
 
@@ -311,7 +216,7 @@ const updateViewport = renderViewport(viewport);
 
 // Update the powered state of any wires and redraw the viewport.
 let gateState = null;
-function renderFrame() {
+function renderFrame(updatedGateIds) {
   data.Gates = data.Gates || []
   data.Wires = data.Wires || []
   data.Outputs = data.Outputs || []
@@ -349,49 +254,73 @@ function renderFrame() {
   if (gateState !== newGateState) {
     gateState = newGateState;
 
-    // Update wire state.
-    data.Gates.forEach(gate => {
-      switch (gate.Type) {
-        case 'AND':
-          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) && getWire(gate.Inputs[1].Id));
-          break;
-        case 'OR':
-          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) || getWire(gate.Inputs[1].Id));
-          break;
-        case 'NOT':
-          setWire(gate.Outputs[0].Id, !getWire(gate.Inputs[0].Id));
-          break;
+    const loopCount = 150 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < loopCount; i++) {
+      // Update wire state.
+      data.Gates.forEach(gate => {
+        switch (gate.Type) {
+          case 'AND':
+            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) && getWire(gate.Inputs[1].Id));
+            break;
+          case 'OR':
+            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) || getWire(gate.Inputs[1].Id));
+            break;
+          case 'NOT':
+            setWire(gate.Outputs[0].Id, !getWire(gate.Inputs[0].Id));
+            break;
 
-        case 'BLOCK_INPUT':
-        case 'BLOCK_OUTPUT':
-          setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id));
-          break;
+          case 'BLOCK_INPUT':
+          case 'BLOCK_OUTPUT':
+            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id));
+            break;
 
-        case 'SOURCE':
-          setWire(gate.Outputs[0].Id, true);
-          break;
-        case 'GROUND':
-          setWire(gate.Outputs[0].Id, false);
-          break;
+          case 'SOURCE':
+            setWire(gate.Outputs[0].Id, true);
+            break;
+          case 'GROUND':
+            setWire(gate.Outputs[0].Id, false);
+            break;
 
-        case 'BUILTIN_FUNCTION':
-          if (['momentary', 'toggle'].indexOf(gate.Label) >= 0) {
-            for (let i = 0; i < gate.Outputs.length; i++) {
-              setWire(gate.Outputs[i].Id, gate.state === 'on');
+          case 'BUILTIN_FUNCTION':
+            if (['momentary', 'toggle'].indexOf(gate.Label) >= 0) {
+              for (let i = 0; i < gate.Outputs.length; i++) {
+                setWire(gate.Outputs[i].Id, gate.state === 'on');
+              }
+            } else if (['led'].indexOf(gate.Label) >= 0) {
+              if (getWire(gate.Inputs[0].Id) === true) {
+                gate.state = 'on';
+              } else {
+                gate.state = 'off';
+              }
+            } else if (['tflipflop'].indexOf(gate.Label) >= 0) {
+              const powered = getWire(gate.Inputs[0].Id);
+
+              if (powered && !gate._poweredflag) {
+                gate._poweredflag = true;
+                gate.state = gate.state === 'on' ? 'off' : 'on';
+              } else if (!powered) {
+                gate._poweredflag = false
+              }
+
+              if (gate.state === 'on') {
+                setWire(gate.Outputs[0].Id, true);
+                if (gate.Outputs.length > 1) {
+                  setWire(gate.Outputs[1].Id, false);
+                }
+              } else {
+                setWire(gate.Outputs[0].Id, false);
+                if (gate.Outputs.length > 1) {
+                  setWire(gate.Outputs[1].Id, true);
+                }
+              }
             }
-          } else if (['led'].indexOf(gate.Label) >= 0) {
-            if (getWire(gate.Inputs[0].Id) === true) {
-              gate.state = 'on';
-            } else {
-              gate.state = 'off';
-            }
-          }
-          break;
+            break;
 
-        default:
-          break;
-      }
-    });
+          default:
+            break;
+        }
+      });
+    }
   }
 
   // Rerender the viewport.
@@ -399,7 +328,7 @@ function renderFrame() {
 }
 
 // Initial frame render.
-renderFrame();
+renderFrame(data.Gates.map(i => i.Id));
 
 
 
@@ -430,7 +359,7 @@ window.save = save;
 
 let viewboxX = 0;
 let viewboxY = 0;
-let viewboxZoom = 1.5; // 1
+let viewboxZoom = 1;
 
 
 // Allow the user to change the zoom level of the viewbox by moving the slider.

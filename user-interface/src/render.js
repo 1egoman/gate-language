@@ -1,5 +1,4 @@
 import * as d3 from "d3";
-import { generateBlocksFromGates } from './block-helpers';
 
 import * as gatesSource from './gates/source';
 import * as gatesGround from './gates/ground';
@@ -11,6 +10,7 @@ import * as gatesBlockOutput from './gates/block-output';
 import * as gatesBuiltinMomentary from './gates/builtin-momentary';
 import * as gatesBuiltinToggle from './gates/builtin-toggle';
 import * as gatesBuiltinLed from './gates/builtin-led';
+import * as gatesBuiltinTFlipFlop from './gates/builtin-tflipflop';
 
 const GATE_RENDERERS = {
   'SOURCE': gatesSource,
@@ -24,6 +24,7 @@ const GATE_RENDERERS = {
     'momentary': gatesBuiltinMomentary,
     'toggle': gatesBuiltinToggle,
     'led': gatesBuiltinLed,
+    'tflipflop': gatesBuiltinTFlipFlop,
   },
 };
 
@@ -46,7 +47,7 @@ const BUILTIN_GATE_MOUSEUP_HANDLERS = {
   },
 }
 
-function renderGates(gateGroup, {gates, renderFrame}) {
+function renderGates(gateGroup, {gates, wires, renderFrame}) {
   const gatesSelection = gateGroup.selectAll('.gate').data(gates);
 
   // Add a new gates when new data elements show up
@@ -115,7 +116,7 @@ function renderGates(gateGroup, {gates, renderFrame}) {
         renderer = renderer[d.Label];
       }
       if (renderer) {
-        renderer.merge(d3.select(this), d);
+        renderer.merge(d3.select(this), d, {gates, wires});
       } else {
         // Update default gate shape
         d3.select(this).select('path')
@@ -344,7 +345,7 @@ export default function renderViewport(viewport) {
     errorOverlay.exit().remove()
 
 
-    renderGates(gates, {gates: allGates, renderFrame});
+    renderGates(gates, {gates: allGates, wires: allWires, renderFrame});
     renderWires(wires, {wires: allWires, gates: allGates, outputs: allOutputs, renderFrame});
     renderBlocks(blocks, {wires: allWires, gates: allGates, contexts: allContexts});
   }
