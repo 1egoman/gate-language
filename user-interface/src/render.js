@@ -157,7 +157,28 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
     if (gate.Type === 'BLOCK_OUTPUT' || gate.Type === 'BLOCK_INPUT') {
       return {x: gate.xPosition + 10, y: gate.yPosition + 10};
     }
-    if (gate.Type === 'BUILTIN_FUNCTION' || gate.Label === 'led') {
+    if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
+      if (inputNumber === 0) {
+        // The first input, t, is right in the middle.
+        return {
+          x: gate.xPosition,
+          y: gate.yPosition + (GATE_HEIGHT / 2),
+        };
+      } else if (inputNumber === 1) {
+        // reset is at the bottom
+        return {
+          x: gate.xPosition,
+          y: gate.yPosition + (GATE_HEIGHT * 0.75),
+        };
+      } else if (inputNumber === 2) {
+        // set is at the top
+        return {
+          x: gate.xPosition,
+          y: gate.yPosition + (GATE_HEIGHT * 0.25),
+        };
+      }
+    }
+    if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'led') {
       return {x: gate.xPosition + (GATE_WIDTH / 2), y: gate.yPosition + (GATE_WIDTH / 2)};
     }
 
@@ -172,6 +193,12 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
   function getGateOutputPosititon(gate, outputNumber) {
     if (gate.Type === 'BLOCK_OUTPUT' || gate.Type === 'BLOCK_INPUT') {
       return {x: gate.xPosition + 10, y: gate.yPosition + 10};
+    }
+    if (gate.Type === 'BUILTIN_FUNCTION' && gate.Label === 'tflipflop') {
+      return {
+        x: gate.xPosition + 80, /* 80 is the width of the t flip flop */
+        y: gate.yPosition + ((GATE_HEIGHT / 4) * (outputNumber + 1)),
+      };
     }
 
     const spacingBetweenOutputs = GATE_WIDTH / gate.Outputs.length;

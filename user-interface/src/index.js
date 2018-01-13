@@ -136,14 +136,16 @@ const compile = debounce(function compile(source) {
         if (context.gateCount) {
           if (gate.Type === 'BLOCK_INPUT' || gate.Type === 'BLOCK_OUTPUT') {
             // All inputs and outputs are on the top border.
-            spacingByContext[context.Id] = (spacingByContext[context.Id] || 0) + gateWidth
+            spacingByContext[context.Id] = spacingByContext[context.Id] || 0
             gate.xPosition = context.x + spacingByContext[context.Id]
+            spacingByContext[context.Id] += gateWidth
             gate.yPosition = context.y
             context.gateCount += 1
           } else {
             // All the rest of the gates in a line below the inputs and outputs
-            spacingByContext[context.Id] = (spacingByContext[context.Id] || 0) + gateWidth
+            spacingByContext[context.Id] = spacingByContext[context.Id] || 0
             gate.xPosition = context.x + spacingByContext[context.Id]
+            spacingByContext[context.Id] += gateWidth
             gate.yPosition = context.y + 100
             context.gateCount += 1
           }
@@ -155,8 +157,9 @@ const compile = debounce(function compile(source) {
         }
       } else {
         // All the rest of the gates in a line below the inputs and outputs
-        spacingByContext[null] = (spacingByContext[null] || 0) + gateWidth
+        spacingByContext[null] = spacingByContext[null] || 0
         gate.xPosition = spacingByContext[null];
+        spacingByContext[null] += gateWidth
         gate.yPosition = 0
       }
     });
