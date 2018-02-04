@@ -50,6 +50,14 @@ type Block struct {
   InvocationCount int
 }
 
+type CallingContext struct {
+  Id int
+  Name string
+  Depth int
+  Parent int
+  Children []int
+}
+
 var stackFrameId int = 0
 type StackFrame struct {
   Id int
@@ -57,12 +65,13 @@ type StackFrame struct {
   Blocks []*Block
 }
 
-var BUILTIN_FUNCTION_NAMES []string = []string{"led", "wave", "momentary", "toggle"}
-var BUILTIN_FUNCTION_RETURN_NUMBER []int=[]int{0    , 1     , 1          , 1}
+var BUILTIN_FUNCTION_NAMES []string = []string{"led", "wave", "momentary", "toggle", "tflipflop"}
+var BUILTIN_FUNCTION_RETURN_NUMBER []int=[]int{0    , 1     , 1          , 1       , 2}
 
-func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, error) {
+func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingContext, []*Wire, error) {
   gates := []*Gate{}
   wires := []*Wire{}
+  contexts := []*CallingContext{}
   outputs := []*Wire{}
 
   input := (*inputs)[0]
@@ -88,15 +97,15 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
     // Parse the left hand side of the gate.
     if lhs, ok := input.Data["LeftHandSide"].(Node); ok {
-      lhsGates, lhsWires, outputs, err := Parse(&[]Node{lhs}, stack)
+      lhsGates, lhsWires, lhsContexts, outputs, err := Parse(&[]Node{lhs}, stack)
       if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, nil, nil, err
       }
 
       // Ensure that there is only one output from the thing on the left hand side (an and gate can
       // only operate on a single value)
       if len(outputs) > 1 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Left hand side of %s gate at %d:%d outputs multiple values in a single value context. Stop.",
           input.Token,
           input.Row,
@@ -104,7 +113,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         ))
       }
       if len(outputs) == 0 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Left hand side of %s gate at %d:%d outputs zero values in a single value context. Stop.",
           input.Token,
           input.Row,
@@ -116,26 +125,27 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Merge all gates from the left hand side with the current gate tree.
       gates = append(gates, lhsGates...)
       wires = append(wires, lhsWires...)
+      contexts = append(contexts, lhsContexts...)
     }
 
     // Parse the right hand side of the gate.
     if rhs, ok := input.Data["RightHandSide"].(Node); ok {
-      rhsGates, rhsWires, outputs, err := Parse(&[]Node{rhs}, stack)
+      rhsGates, rhsWires, rhsContexts, outputs, err := Parse(&[]Node{rhs}, stack)
       if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, nil, nil, err
       }
 
       // Ensure that thre is only one output from the thing on the left hand side (an and gate can
       // only operate on a single value)
       if len(outputs) > 1 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Right hand side of and gate at %d:%d outputs multiple values in a single value context. Stop.",
           input.Row,
           input.Col,
         ))
       }
       if len(outputs) == 0 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Right hand side of and gate at %d:%d outputs zero values in a single value context. Stop.",
           input.Row,
           input.Col,
@@ -146,6 +156,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Merge all gates from the left hand side with the current gate tree.
       gates = append(gates, rhsGates...)
       wires = append(wires, rhsWires...)
+      contexts = append(contexts, rhsContexts...)
     }
 
     // Add a new wire as output
@@ -174,22 +185,22 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     var rhsOutput *Wire
     // Parse the right hand side of the gate.
     if rhs, ok := input.Data["RightHandSide"].(Node); ok {
-      rhsGates, rhsWires, outputs, err := Parse(&[]Node{rhs}, stack)
+      rhsGates, rhsWires, rhsContexts, outputs, err := Parse(&[]Node{rhs}, stack)
       if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, nil, nil, err
       }
 
       // Ensure that thre is only one output from the thing on the left hand side (an and gate can
       // only operate on a single value)
       if len(outputs) > 1 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Right hand side of a not gate at %d:%d outputs multiple values in a single value context. Stop.",
           input.Row,
           input.Col,
         ))
       }
       if len(outputs) == 0 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Right hand side of not gate at %d:%d outputs zero values in a single value context. Stop.",
           input.Row,
           input.Col,
@@ -200,6 +211,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Merge all gates from the left hand side with the current gate tree.
       gates = append(gates, rhsGates...)
       wires = append(wires, rhsWires...)
+      contexts = append(contexts, rhsContexts...)
     }
 
     // Add a new wire as output
@@ -235,7 +247,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       for len(rhsValues) < numberOfLhsValues {
         // Ensure that the there are still tokens to pull from
         if len(*inputs) <= 1 {
-          return nil, nil, nil, errors.New(fmt.Sprintf(
+          return nil, nil, nil, nil, errors.New(fmt.Sprintf(
             "Assignment at %d:%d has more variables on the left hand side (%d) than tokens on the right hand side to assign (%d). Stop.",
             input.Row,
             input.Col,
@@ -250,7 +262,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
         // Verify that the token is of the proper type.
         if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
-          return nil, nil, nil, errors.New(fmt.Sprintf(
+          return nil, nil, nil, nil, errors.New(fmt.Sprintf(
             "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.\n",
             input.Row,
             input.Col,
@@ -262,18 +274,18 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         }
 
         // Execute it
-        paramGates, paramWires, paramOutputs, err := Parse(&[]Node{parameter}, stack)
+        paramGates, paramWires, paramContexts, paramOutputs, err := Parse(&[]Node{parameter}, stack)
 
         // Bubble errors up from the invocation
         if err != nil {
-          return nil, nil, nil, err
+          return nil, nil, nil, nil, err
         }
         // fmt.Printf("  * executed param successfully... %d results.\n", len(paramOutputs))
 
         // Ensure that the parameter, when evaluated, returns outputs.
         if len(paramOutputs) == 0 {
           // fmt.Printf("PARAM %+v %+v %+v\n", parameter, paramGates, paramWires)
-          return nil, nil, nil, errors.New(fmt.Sprintf(
+          return nil, nil, nil, nil, errors.New(fmt.Sprintf(
             "Parameter to assignment (assignment located at %d:%d, parameter located at %d:%d) outputted no values after being evaluated, please remove from assignment. Stop.\n",
             input.Row,
             input.Col,
@@ -285,6 +297,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         // Add gates and generated to master collections.
         gates = append(gates, paramGates...)
         wires = append(wires, paramWires...)
+        contexts = append(contexts, paramContexts...)
 
         // Add outputs into the rhs values that are being collected.
         rhsValues = append(rhsValues, paramOutputs...)
@@ -342,7 +355,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       *inputs = (*inputs)[1:]
       // fmt.Println("Tokens left:", inputs)
     } else {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "The name within the assignment at %d:%d isn't a valid string - got %s. Stop.\n",
         input.Row,
         input.Col,
@@ -363,16 +376,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           // Add a wire to each input to the `builtinInputs` slice.
           for _, child := range *input.Children {
             // Execute each parameter passed into the invocation to get an output wire to its result.
-            paramGates, paramWires, paramOutputs, err := Parse(&[]Node{child}, stack)
+            paramGates, paramWires, paramContexts, paramOutputs, err := Parse(&[]Node{child}, stack)
 
             // Bubble errors up from the invocation
             if err != nil {
-              return nil, nil, nil, err
+              return nil, nil, nil, nil, err
             }
 
             // Add gates and generated to master collections.
             gates = append(gates, paramGates...)
             wires = append(wires, paramWires...)
+            contexts = append(contexts, paramContexts...)
             builtinInputs = append(builtinInputs, paramOutputs...)
           }
 
@@ -403,7 +417,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           // Remove token that was just parsed.
           *inputs = (*inputs)[1:]
 
-          return gates, wires, gate.Outputs, nil
+          return gates, wires, contexts, gate.Outputs, nil
         }
       }
       // (end builtin code)
@@ -421,7 +435,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
       // Ensure that the invokation is inkoving something that can be invoked.
       if block == nil {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "The invocation at %d:%d (trying to invoke %s) doesn't invoke a block that can be found in the current or any parent scope. Stop.\n",
           input.Row,
           input.Col,
@@ -439,16 +453,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       var vars []*Variable
       for ct, child := range *input.Children {
         // Execute each parameter passed into the invocation to get an output wire to its result.
-        paramGates, paramWires, paramOutputs, err := Parse(&[]Node{child}, stack)
+        paramGates, paramWires, paramContexts, paramOutputs, err := Parse(&[]Node{child}, stack)
 
         // Bubble errors up from the invocation
         if err != nil {
-          return nil, nil, nil, err
+          return nil, nil, nil, nil, err
         }
 
         // Add gates and generated to master collections.
         gates = append(gates, paramGates...)
         wires = append(wires, paramWires...)
+        contexts = append(contexts, paramContexts...)
 
         // But add each output from invoking into the variables slice to use to perform the actual
         // invocation, joining through a special type of gate called "BLOCK_INPUT" to denote that
@@ -477,7 +492,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
           params := strings.Split(block.Content.Data["Params"].(string), " ")
           if (len(params) - 1) < numberOfVars + 1 {
             fmt.Println(block.Content)
-            return nil, nil, nil, errors.New(fmt.Sprintf(
+            return nil, nil, nil, nil, errors.New(fmt.Sprintf(
               "The invocation at %d:%d (trying to invoke %s) is invoking the block with too many parameters (expected %d, received %d). Stop.\n",
               input.Row,
               input.Col,
@@ -510,6 +525,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
         },
       })
 
+      // Also, take note of the new calling context we've created. We're recording mostly the same
+      // information that was put onto the stack. but this collection is insert only.
+      parentContextId := invocationStack[(len(invocationStack) - 1) - 1].Id
+      contexts = append(contexts, &CallingContext{
+        Id: stackFrameId,
+        Name: block.Name,
+        Depth: len(invocationStack) - 1,
+        Parent: parentContextId,
+        Children: []int{},
+      });
+
       // Make a copy of the children within the block so that they can be destructively mutated
       // by the parser without changing the actual contents of the block.
       blockChildren := *block.Content.Children
@@ -518,18 +544,19 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       for len(blockChildren) > 0 {
         headToken := blockChildren[0].Token
 
-        invocationResultGates, invocationResultWires, invocationResultOutputs, err := Parse(
+        invocationResultGates, invocationResultWires, invocationResultContexts, invocationResultOutputs, err := Parse(
           &blockChildren,
           invocationStack,
         )
 
         // Bubble errors up from the invocation
         if err != nil {
-          return nil, nil, nil, err
+          return nil, nil, nil, nil, err
         }
 
         gates = append(gates, invocationResultGates...)
         wires = append(wires, invocationResultWires...)
+        contexts = append(contexts, invocationResultContexts...)
 
         // If a return token is found, take each value that is outputted, connect it to a
         // `BLOCK_OUTPUT` node, and put the output wire of that `BLOCK_OUTPUT` node in the outputs
@@ -581,7 +608,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
     // Ensure that the parent of the currently invoked function exists.
     if self == nil {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "Couldn't find the parent of the currently invoked function, on %d:%d.",
         input.Row,
         input.Col,
@@ -598,17 +625,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // fmt.Printf("  * found new token after return: %+v\n", parameter)
 
       // Execute it
-      paramGates, paramWires, paramOutputs, err := Parse(&[]Node{parameter}, stack)
+      paramGates, paramWires, paramContexts, paramOutputs, err := Parse(&[]Node{parameter}, stack)
 
       // Bubble errors up from the invocation
       if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, nil, nil, err
       }
       // fmt.Printf("  * executed token successfully... %d results.\n", len(paramOutputs))
 
       // Ensure that the parameter, when evaluated, returns outputs.
       if len(paramOutputs) == 0 {
-        return nil, nil, nil, errors.New(fmt.Sprintf(
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
           "Parameter to assignment (assignment located at %d:%d, parameter located at %d:%d) outputted no values after being evaluated, please remove from assignment. Stop.\n",
           input.Row,
           input.Col,
@@ -620,6 +647,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Add gates and generated to master collections.
       gates = append(gates, paramGates...)
       wires = append(wires, paramWires...)
+      contexts = append(contexts, paramContexts...)
 
       // Add outputs into the rhs values that are being collected.
       outputs = append(outputs, paramOutputs...)
@@ -633,7 +661,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     // There should be no tokens left in the input array after the block return that haven't already
     // been parsed.
     if !( len(*inputs) == 1 && (*inputs)[0].Token == "BLOCK_RETURN" ) {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "Block %s at %d:%d has too many return values, expected %d, got %d. Stop.\n",
         self.Data["Name"],
         input.Row,
@@ -689,7 +717,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Remove token that was just parsed.
       *inputs = (*inputs)[1:]
     } else {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "The value within the identifier at %d:%d isn't a valid stril - got %s. Stop.",
         input.Row,
         input.Col,
@@ -699,7 +727,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
 
   case "GROUP":
     if input.Children == nil {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "The children attribute within the group at %d:%d is nil. Stop.",
         input.Row,
         input.Col,
@@ -707,12 +735,13 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     }
 
     for _, child := range *input.Children {
-      childGates, childWires, childOutputs, err := Parse(&[]Node{child}, stack)
+      childGates, childWires, childContexts, childOutputs, err := Parse(&[]Node{child}, stack)
       if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, nil, nil, err
       }
       gates = append(gates, childGates...)
       wires = append(wires, childWires...)
+      contexts = append(contexts, childContexts...)
       outputs = append(outputs, childOutputs...)
     }
 
@@ -730,7 +759,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Remove token that was just parsed.
       *inputs = (*inputs)[1:]
     } else {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "The block at %d:%d doesn't have a name, instead found %s. Stop.",
         input.Row,
         input.Col,
@@ -771,7 +800,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
       // Remove token that was just parsed.
       *inputs = (*inputs)[1:]
     } else {
-      return nil, nil, nil, errors.New(fmt.Sprintf(
+      return nil, nil, nil, nil, errors.New(fmt.Sprintf(
         "The value within the boolean at %d:%d isn't true or false - got %s. Stop.",
         input.Row,
         input.Col,
@@ -780,7 +809,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     }
 
   default:
-    return nil, nil, nil, errors.New(fmt.Sprintf(
+    return nil, nil, nil, nil, errors.New(fmt.Sprintf(
       "Unknown token at %d:%d - %s. Stop.\n",
       input.Row,
       input.Col,
@@ -788,6 +817,6 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*Wire, erro
     ))
   }
 
-  return gates, wires, outputs, nil
+  return gates, wires, contexts, outputs, nil
 }
 

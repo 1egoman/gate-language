@@ -14,6 +14,7 @@ import (
 type Summary struct {
   Gates []*Gate
   Wires []*Wire
+  Contexts []*CallingContext
   Outputs []*Wire
 }
 
@@ -45,16 +46,18 @@ func act(input string, tokenize bool, verbose bool) (*Summary, error) {
 
   var allGates []*Gate
   var allWires []*Wire
+  var allContexts []*CallingContext
   var finalOutputs []*Wire
 
   resultValues := *result
 
   for len(resultValues) > 0 {
     if verbose { fmt.Println("==========>", resultValues) }
-    gates, wires, outputs, err := Parse(&resultValues, stack)
+    gates, wires, contexts, outputs, err := Parse(&resultValues, stack)
 
     allGates = append(allGates, gates...)
     allWires = append(allWires, wires...)
+    allContexts = append(allContexts, contexts...)
     finalOutputs = outputs
 
     if err != nil {
@@ -102,10 +105,24 @@ func act(input string, tokenize bool, verbose bool) (*Summary, error) {
     fmt.Println("FINAL OUTPUTS", finalOutputs)
   }
 
+  // Add child contexts to parent contexts
+  // THis can't be done in `Parse` because it never has a reference to all contexts at once.
+  for _, context := range allContexts {
+    if context.Parent > 0 {
+      for _, parentContext := range allContexts {
+        if parentContext.Id == context.Parent {
+          parentContext.Children = append(parentContext.Children, context.Id)
+          break
+        }
+      }
+    }
+  }
+
   // Print out a summary of the results to that they can be rendered.
   summary := Summary{
     Gates: allGates,
     Wires: allWires,
+    Contexts: allContexts,
     Outputs: finalOutputs,
   }
 
