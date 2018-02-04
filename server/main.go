@@ -138,7 +138,7 @@ func main() {
   args := flag.Args()
 
   if *server {
-    http.HandleFunc("/v1", func(w http.ResponseWriter, r *http.Request) {
+    http.HandleFunc("/v1/compile", func(w http.ResponseWriter, r *http.Request) {
       //Allow CORS here By * or specific origin
       w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -157,6 +157,23 @@ func main() {
       } else {
         json.NewEncoder(w).Encode(summary)
       }
+    })
+    http.HandleFunc("/v1/run", func(w http.ResponseWriter, r *http.Request) {
+      // Allow CORS here By * or specific origin
+      w.Header().Set("Access-Control-Allow-Origin", "*")
+      w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+      // Decode the bodyA
+      decoder := json.NewDecoder(r.Body)
+      var body struct {
+        Gates []*Gate
+        Wires []*Wire
+      }
+      decoder.Decode(&body)
+
+      hash := Execute("", body.Gates, body.Wires)
+
+      json.NewEncoder(w).Encode(map[string]string{"Hash": hash})
     })
 
     fmt.Println("Starting server on :8080")

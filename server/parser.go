@@ -12,6 +12,7 @@ type Wire struct {
   Desc string
   Start *Gate
   End *Gate
+  Powered bool
 }
 
 type GateType string
@@ -37,6 +38,7 @@ type Gate struct {
 
   // A reference to the id of the block that this gate is within.
   CallingContext int
+  State string
 }
 
 type Variable struct {
