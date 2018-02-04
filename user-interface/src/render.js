@@ -153,8 +153,8 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
     .attr('data-label', d => d.Label)
     .attr('data-type', d => d.Type)
 
-  gatesMergeSelection.select('text')
-    .text(d => `${d.Id} ${d.CallingContext}`);
+  /* gatesMergeSelection.select('text') */
+  /*   .text(d => `${d.Id} ${d.CallingContext}`); */
 
   gatesSelection.exit().remove()
 }
@@ -194,7 +194,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
     const startPadding = spacingBetweenInputs / 2;
     return {
       x: gate.xPosition + startPadding + (spacingBetweenInputs * inputNumber),
-      y: gate.yPosition - (gate.rotate === 180 ? 40 : 0) + (gate.Type === 'NOT' ? 40 : GATE_HEIGHT) - 6,
+      y: gate.yPosition - (gate.rotate === 180 ? (gate.Type === 'NOT' ? 20 : 40) : 0) + (gate.Type === 'NOT' ? 40 : GATE_HEIGHT) - 6,
     }
   }
 

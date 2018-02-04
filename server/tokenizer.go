@@ -101,7 +101,7 @@ var TOKENS []Token = []Token{
     Name: "BLOCK",
     Type: WRAPPER_START,
     // block identifier(as many identifiers ay needed in here all space seperated) {
-    Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
     GetData: func(match []string) map[string]interface{} {
       // Calculate an input quantity
       inputQuantity := 0
@@ -362,6 +362,10 @@ func Tokenizer(input string) (*[]Node, error) {
       }
     }
 
+    // fmt.Println("WHITESPACE REMOVED:")
+    // fmt.Println(string(code), string(code[0]))
+    // fmt.Println("=================")
+
     // Check to make sure that there are characters to match against below in the token matching
     // code. If code = " " going into outer while loop, then the whitespace will be removed but the
     // empty string will still attempt to be matched upon - this will result in failure.
@@ -371,7 +375,9 @@ func Tokenizer(input string) (*[]Node, error) {
 
     // Try to find a matching token.
     for _, token := range TOKENS {
+      // fmt.Println("TRY TOKEN", token)
       if result := token.Match.FindStringSubmatch(string(code)); result != nil {
+        // fmt.Println("MATCHED TOKEN", token)
         // The token we looped over matched!
         if token.Type == SINGLE || token.Type == UNARY_OPERATOR {
           data := token.GetData(result)
@@ -523,6 +529,10 @@ func Tokenizer(input string) (*[]Node, error) {
 
         // Remove the token from the start of the input string we are looping over.
         code = code[len(result[0]):]
+        // fmt.Println("TOKEN", token)
+        // fmt.Println(string(code))
+        // fmt.Println("-----------------")
+
         continue Outer;
       }
     }

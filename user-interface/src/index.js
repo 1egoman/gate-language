@@ -210,7 +210,7 @@ const compile = debounce(function compile(source) {
         Math.pow(gateConnectedToInput.yPosition - gate.yPosition, 2),
       );
 
-      if (wireLength > 200) {
+      if (wireLength > 100) {
         gate.xPosition = gateConnectedToInput.xPosition + 50;
         gate.yPosition = gateConnectedToInput.yPosition + 100;
       }
@@ -280,6 +280,7 @@ let data = {Gates: [], Wires: [], Outputs: []};
 let error = null;
 editor.on('change', () => {
   const value = editor.getValue();
+  localStorage.source = value;
   compile(value);
 });
 compile(editor.getValue());
