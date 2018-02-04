@@ -50,110 +50,102 @@ func calculateWireHash(wires []*Wire) string {
   return hash
 }
 
-func Execute(initialHash string, gates []*Gate, wires []*Wire) string {
-  newHash := calculateGateHash(gates)
+func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
+  // Loop for a number of times. There's some randomness added here to try to make
+  // debugging of infinite looping constructs easier.
+  // loopCount := 150 + rand.Intn(5)
+  // for i := 0; i < loopCount; i++ {
 
-  // If the hash doesn't match the previous hash that was stored, recalculate the
-  // state of all gates.
-  if (initialHash != newHash) {
-    fmt.Printf("HASHES DONT MATCH: '%s' != '%s'\n", initialHash, newHash)
+  var oldHash string = ""
+  var newHash string
+  for {
+    // Calculate a hash of the state of all the wires.
+    newHash = calculateWireHash(wires)
 
-    // Loop for a number of times. There's some randomness added here to try to make
-    // debugging of infinite looping constructs easier.
-    // loopCount := 150 + rand.Intn(5)
-    // for i := 0; i < loopCount; i++ {
+    // If the hash after the last calculation is the same as the hash before
+    // the last calculation, then break out of the loop. We're at a stable state.
+    if oldHash == newHash {
+      break
+    }
 
-    var oldHash string = ""
-    var newHash string
-    for {
-      // Calculate a hash of the state of all the wires.
-      newHash = calculateWireHash(wires)
+    // Another round of computation is required. The hash of the current state is the hash to
+    // compare against for the next check.
+    oldHash = newHash
 
-      // If the hash after the last calculation is the same as the hash before
-      // the last calculation, then break out of the loop. We're at a stable state.
-      if oldHash == newHash {
-        break
-      }
+    for _, gate := range gates {
+      switch gate.Type {
+      case "AND":
+        fmt.Println("DID AND")
+        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) && getWire(wires, gate.Inputs[1].Id));
+      case "OR":
+        fmt.Println("DID OR")
+        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) || getWire(wires, gate.Inputs[1].Id));
+      case "NOT":
+        fmt.Println("DID NOT")
+        setWire(wires, gate.Outputs[0].Id, !getWire(wires, gate.Inputs[0].Id));
+      case "BLOCK_INPUT":
+      case "BLOCK_OUTPUT":
+        fmt.Println("DID BLOCK_*")
+        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id));
+      case "SOURCE":
+        fmt.Println("DID SOURCE")
+        setWire(wires, gate.Outputs[0].Id, true);
+      case "GROUND":
+        fmt.Println("DID GROUND")
+        setWire(wires, gate.Outputs[0].Id, false);
 
-      // Another round of computation is required. The hash of the current state is the hash to
-      // compare against for the next check.
-      oldHash = newHash
-
-      for _, gate := range gates {
-        switch gate.Type {
-        case "AND":
-          fmt.Println("DID AND")
-          setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) && getWire(wires, gate.Inputs[1].Id));
-        case "OR":
-          fmt.Println("DID OR")
-          setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) || getWire(wires, gate.Inputs[1].Id));
-        case "NOT":
-          fmt.Println("DID NOT")
-          setWire(wires, gate.Outputs[0].Id, !getWire(wires, gate.Inputs[0].Id));
-        case "BLOCK_INPUT":
-        case "BLOCK_OUTPUT":
-          fmt.Println("DID BLOCK_*")
-          setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id));
-        case "SOURCE":
-          fmt.Println("DID SOURCE")
-          setWire(wires, gate.Outputs[0].Id, true);
-        case "GROUND":
-          fmt.Println("DID GROUND")
-          setWire(wires, gate.Outputs[0].Id, false);
-
-        case "BUILTIN_FUNCTION":
-          if (gate.Label == "momentary" || gate.Label == "toggle") {
-            for i := 0; i < len(gate.Outputs); i++ {
-              setWire(wires, gate.Outputs[i].Id, gate.State == "on");
-            }
-          } else if (gate.Label == "led") {
-            if getWire(wires, gate.Inputs[0].Id) {
-              gate.State = "on"
-            } else {
-              gate.State = "off"
-            }
-          } else if (gate.Label == "tflipflop") {
-            powered := getWire(wires, gate.Inputs[0].Id);
-
-            // Set a default state for the flipflop if it hasn't been set already.
-            if len(gate.State) == 0 {
-              gate.State = "100"
-            }
-
-            // Extract the parts of the state.
-            r := gate.State[0] == '1'
-            s := gate.State[1] == '1'
-            hasBeenFlipped := gate.State[2] == '1'
-
-            // If power was received and the state wasn't already flipped, do this now.
-            if (powered && !hasBeenFlipped) {
-              hasBeenFlipped = true
-              r, s = s, r // Flip the state of the gate
-            } else if (!hasBeenFlipped) {
-              hasBeenFlipped = false
-            }
-
-            if (r) {
-              /* The R side of the latch is active */
-              setWire(wires, gate.Outputs[0].Id, true);
-              if len(gate.Outputs) > 1 { /* set not q if passed */
-                setWire(wires, gate.Outputs[1].Id, false);
-              }
-            } else {
-              /* The S side of the latch is active */
-              setWire(wires, gate.Outputs[0].Id, false);
-              if len(gate.Outputs) > 1 { /* set not q if passed */
-                setWire(wires, gate.Outputs[1].Id, true);
-              }
-            }
-
-            // Update the state with the updated values
-            gate.State = fmt.Sprintf("%d%d%d", r, s, hasBeenFlipped)
+      case "BUILTIN_FUNCTION":
+        if (gate.Label == "momentary" || gate.Label == "toggle") {
+          for i := 0; i < len(gate.Outputs); i++ {
+            setWire(wires, gate.Outputs[i].Id, gate.State == "on");
           }
+        } else if (gate.Label == "led") {
+          if getWire(wires, gate.Inputs[0].Id) {
+            gate.State = "on"
+          } else {
+            gate.State = "off"
+          }
+        } else if (gate.Label == "tflipflop") {
+          powered := getWire(wires, gate.Inputs[0].Id);
+
+          // Set a default state for the flipflop if it hasn't been set already.
+          if len(gate.State) == 0 {
+            gate.State = "100"
+          }
+
+          // Extract the parts of the state.
+          r := gate.State[0] == '1'
+          s := gate.State[1] == '1'
+          hasBeenFlipped := gate.State[2] == '1'
+
+          // If power was received and the state wasn't already flipped, do this now.
+          if (powered && !hasBeenFlipped) {
+            hasBeenFlipped = true
+            r, s = s, r // Flip the state of the gate
+          } else if (!hasBeenFlipped) {
+            hasBeenFlipped = false
+          }
+
+          if (r) {
+            /* The R side of the latch is active */
+            setWire(wires, gate.Outputs[0].Id, true);
+            if len(gate.Outputs) > 1 { /* set not q if passed */
+              setWire(wires, gate.Outputs[1].Id, false);
+            }
+          } else {
+            /* The S side of the latch is active */
+            setWire(wires, gate.Outputs[0].Id, false);
+            if len(gate.Outputs) > 1 { /* set not q if passed */
+              setWire(wires, gate.Outputs[1].Id, true);
+            }
+          }
+
+          // Update the state with the updated values
+          gate.State = fmt.Sprintf("%d%d%d", r, s, hasBeenFlipped)
         }
       }
     }
   }
 
-  return calculateGateHash(gates)
+  return gates, wires
 }

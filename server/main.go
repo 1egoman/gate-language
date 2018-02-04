@@ -146,7 +146,7 @@ func main() {
       w.Header().Set("Access-Control-Allow-Origin", "*")
       w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-      // Decode the bodyA
+      // Decode the body
       decoder := json.NewDecoder(r.Body)
       var body struct {
         Gates []*Gate
@@ -154,9 +154,9 @@ func main() {
       }
       decoder.Decode(&body)
 
-      hash := Execute("", body.Gates, body.Wires)
+      gates, wires := Execute(body.Gates, body.Wires)
 
-      json.NewEncoder(w).Encode(map[string]string{"Hash": hash})
+      json.NewEncoder(w).Encode(map[string]interface{}{"Gates": gates, "Wires": wires})
     })
 
     fmt.Println("Starting server on :8080")
