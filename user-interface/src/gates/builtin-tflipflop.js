@@ -110,7 +110,7 @@ export function merge(group, d, {gates, wires}) {
   fg.select('.w3').attr('stroke', powered ? 'red' : 'black'); // on if t is on
   fg.select('.w4').attr('stroke', powered ? 'red' : 'black'); // on if t is on
 
-  if (d.state !== 'on') {
+  if (d.State !== 'on') {
     fg.select('.w1').attr('stroke', 'red');
     fg.select('.w2').attr('stroke', 'black');
     fg.select('.w5').attr('stroke', 'red');

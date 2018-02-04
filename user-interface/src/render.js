@@ -34,16 +34,16 @@ const BLOCK_PADDING = 10;
 
 const BUILTIN_GATE_MOUSEDOWN_HANDLERS = {
   toggle(data) {
-    data.state = data.state === 'on' ? 'off' : 'on';
+    data.State = data.State === 'on' ? 'off' : 'on';
   },
   momentary(data) {
-    data.state = 'on';
+    data.State = 'on';
   }
 }
 
 const BUILTIN_GATE_MOUSEUP_HANDLERS = {
   momentary(data) {
-    data.state = 'off';
+    data.State = 'off';
   },
 }
 
@@ -266,7 +266,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
   wireMergeSelection.select('path')
     .attr('d', d => d.path)
     .attr('stroke', d => {
-      return d.data && d.data.powered ? 'red' : 'black';
+      return d.data && d.data.Powered ? 'red' : 'black';
     })
 
   wiresSelection.exit().remove()

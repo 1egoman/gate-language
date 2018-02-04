@@ -12,7 +12,7 @@ export function merge(group) {
     .attr('fill', d => {
       if (d.active) {
         return 'green';
-      } else if (d.state === 'on') {
+      } else if (d.State === 'on') {
         return 'magenta';
       } else {
         return 'silver';

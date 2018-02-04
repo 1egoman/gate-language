@@ -46,6 +46,7 @@ function createEditor(element) {
   const editor = CodeMirror(element, {
     lineNumbers: true,
     value: `
+    /*
 block counter(clock reset) {
   let q1 nq1 = tflipflop(clock reset)
   led(nq1)
@@ -63,7 +64,11 @@ let q1 q2 q3 q4 = counter(momentary() momentary())
 led(q1)
 led(q2)
 led(q3)
-led(q4)
+led(q4) */
+
+let a = toggle()
+let b = (a and 1)
+led(b)
     `,
     mode: 'bitlang',
     theme: 'monokai',
@@ -76,7 +81,7 @@ const editor = createEditor(document.getElementById('editor-parent'));
 
 
 const compile = debounce(function compile(source) {
-  return fetch('http://localhost:8080/v1', {
+  return fetch('http://localhost:8081/v1/compile', {
     method: 'POST',
     body: source,
     headers: {
@@ -290,121 +295,53 @@ function renderFrame(updatedGateIds) {
   data.Wires = data.Wires || []
   data.Outputs = data.Outputs || []
 
-  function setWire(id, powered) {
-    const wire = data.Wires.find(i => i.Id === id);
-    if (wire) {
-      wire.powered = powered;
-
-      if (updatedWireIds.indexOf(id) === -1) {
-        updatedWireIds.push(id);
-      }
-    }
-  }
-
-  function getWire(id) {
-    const wire = data.Wires.find(i => i.Id === id);
-    if (wire) {
-      return wire.powered;
-    }
-  }
-
-  // Update the powered state of the wires.
-  const updatedWireIds = [];
-
   // Calculate a hash of the current gate's state
   const newGateState = JSON.stringify(
     data.Gates.filter(i => i.Type === 'BUILTIN_FUNCTION' && ['toggle', 'momentary'].indexOf(i.Label) !== -1)
-      .map(i => [i.id, i.state])
+      .map(i => [i.id, i.State])
       .sort((a, b) => b[0] - a[0])
       .map(i => i[1])
   ) + data.Gates.length.toString();
 
   // If the hash doesn't match the previous hash that was stored, recalculate the stat of all gates.
+  console.log(gateState, newGateState)
   if (gateState !== newGateState) {
     gateState = newGateState;
 
-    const loopCount = 150 + Math.floor(Math.random() * 5);
-    for (let i = 0; i < loopCount; i++) {
-      // Update wire state.
-      data.Gates.forEach(gate => {
-        switch (gate.Type) {
-          case 'AND':
-            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) && getWire(gate.Inputs[1].Id));
-            break;
-          case 'OR':
-            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id) || getWire(gate.Inputs[1].Id));
-            break;
-          case 'NOT':
-            setWire(gate.Outputs[0].Id, !getWire(gate.Inputs[0].Id));
-            break;
+    return fetch('http://localhost:8081/v1/run', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'text/plain',
+        'Accept': 'application/json',
+      },
+    }).then(result => {
+      if (result.ok) {
+        return result.json();
+      } else {
+        throw new Error(`Run failed: ${result.statusCode}`);
+      }
+    }).then(updates => {
+      // Was an error received while compiling?
+      if (updates.Error) {
+        throw new Error(updates.Error);
+      }
 
-          case 'BLOCK_INPUT':
-          case 'BLOCK_OUTPUT':
-            setWire(gate.Outputs[0].Id, getWire(gate.Inputs[0].Id));
-            break;
-
-          case 'SOURCE':
-            setWire(gate.Outputs[0].Id, true);
-            break;
-          case 'GROUND':
-            setWire(gate.Outputs[0].Id, false);
-            break;
-
-          case 'BUILTIN_FUNCTION':
-            if (['momentary', 'toggle'].indexOf(gate.Label) >= 0) {
-              for (let i = 0; i < gate.Outputs.length; i++) {
-                setWire(gate.Outputs[i].Id, gate.state === 'on');
-              }
-            } else if (['led'].indexOf(gate.Label) >= 0) {
-              if (getWire(gate.Inputs[0].Id) === true) {
-                gate.state = 'on';
-              } else {
-                gate.state = 'off';
-              }
-            } else if (['tflipflop'].indexOf(gate.Label) >= 0) {
-              const powered = getWire(gate.Inputs[0].Id);
-              let r = false, s = false;
-              if (gate.Inputs.length > 1) {
-                s = getWire(gate.Inputs[1].Id);
-              }
-              if (gate.Inputs.length > 2) {
-                r = getWire(gate.Inputs[2].Id);
-              }
-
-              // If power was received and the state wasn't already flipped, do this now.
-              if (powered && !gate._poweredflag) {
-                gate._poweredflag = true;
-                gate.state = gate.state === 'on' ? 'off' : 'on';
-              } else if (!powered) {
-                gate._poweredflag = false
-              }
-
-              if (r) {
-                gate.state = 'off';
-              }
-              if (s) {
-                gate.state = 'on';
-              }
-
-              if (gate.state === 'on') {
-                setWire(gate.Outputs[0].Id, true);
-                if (gate.Outputs.length > 1) { /* set not q if passed */
-                  setWire(gate.Outputs[1].Id, false);
-                }
-              } else {
-                setWire(gate.Outputs[0].Id, false);
-                if (gate.Outputs.length > 1) { /* set not q if passed */
-                  setWire(gate.Outputs[1].Id, true);
-                }
-              }
-            }
-            break;
-
-          default:
-            break;
-        }
+      // Update the state of each gate, and the powered state of each wire
+      data.Gates.forEach((gate, index) => {
+        data.Gates[index].State = updates.Gates[index].State
       });
-    }
+      data.Wires.forEach((wire, index) => {
+        data.Wires[index].Powered = updates.Wires[index].Powered
+      });
+
+      renderFrame(data.Gates.map(i => i.Id));
+    }).catch(err => {
+      console.error(err.stack);
+      // Set a global error variable
+      error = err.message;
+      renderFrame([]);
+    });
   }
 
   // Rerender the viewport.

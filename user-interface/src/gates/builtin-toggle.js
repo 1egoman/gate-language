@@ -12,14 +12,14 @@ export function merge(group) {
     .attr('fill', d => {
       if (d.active) {
         return 'green';
-      } else if (d.state === 'on') {
+      } else if (d.State === 'on') {
         return 'magenta';
       } else {
         return 'silver';
       }
     })
     .attr('d', d => {
-      if (d.state === 'on') {
+      if (d.State === 'on') {
         return `M0.5,0.5 L0.5,49.5 L29.5,49.5 L29.5,0.5 L0.5,0.5 Z M9,14.5 C5.96243388,14.5
         3.5,12.0375661 3.5,9 C3.5,5.96243388 5.96243388,3.5 9,3.5 C12.0375661,3.5
         14.5,5.96243388 14.5,9 C14.5,12.0375661 12.0375661,14.5 9,14.5 Z`;
