@@ -66,6 +66,9 @@ led(q2)
 led(q3)
 led(q4) */
 
+let bla = tflipflop(toggle())
+led(bla)
+
 let a = toggle()
 let b = (a and 1)
 led(b)
@@ -305,11 +308,10 @@ function renderFrame(updatedGateIds) {
   ) + data.Gates.length.toString();
 
   // If the hash doesn't match the previous hash that was stored, recalculate the stat of all gates.
-  console.log(gateState, newGateState)
   if (gateState !== newGateState) {
     gateState = newGateState;
 
-    return fetch('http://localhost:8081/v1/run', {
+    return window.fetch('http://localhost:8081/v1/run', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: {
@@ -330,10 +332,10 @@ function renderFrame(updatedGateIds) {
 
       // Update the state of each gate, and the powered state of each wire
       data.Gates.forEach((gate, index) => {
-        data.Gates[index].State = updates.Gates[index].State
+        data.Gates[index].State = updates.Gates[index].State;
       });
       data.Wires.forEach((wire, index) => {
-        data.Wires[index].Powered = updates.Wires[index].Powered
+        data.Wires[index].Powered = updates.Wires[index].Powered;
       });
 
       renderFrame(data.Gates.map(i => i.Id));

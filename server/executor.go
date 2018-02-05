@@ -75,23 +75,17 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
     for _, gate := range gates {
       switch gate.Type {
       case "AND":
-        fmt.Println("DID AND")
         setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) && getWire(wires, gate.Inputs[1].Id));
       case "OR":
-        fmt.Println("DID OR")
         setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) || getWire(wires, gate.Inputs[1].Id));
       case "NOT":
-        fmt.Println("DID NOT")
         setWire(wires, gate.Outputs[0].Id, !getWire(wires, gate.Inputs[0].Id));
       case "BLOCK_INPUT":
       case "BLOCK_OUTPUT":
-        fmt.Println("DID BLOCK_*")
         setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id));
       case "SOURCE":
-        fmt.Println("DID SOURCE")
         setWire(wires, gate.Outputs[0].Id, true);
       case "GROUND":
-        fmt.Println("DID GROUND")
         setWire(wires, gate.Outputs[0].Id, false);
 
       case "BUILTIN_FUNCTION":
@@ -106,42 +100,60 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
             gate.State = "off"
           }
         } else if (gate.Label == "tflipflop") {
-          powered := getWire(wires, gate.Inputs[0].Id);
-
           // Set a default state for the flipflop if it hasn't been set already.
           if len(gate.State) == 0 {
-            gate.State = "100"
+            gate.State = "10"
           }
 
-          // Extract the parts of the state.
-          r := gate.State[0] == '1'
-          s := gate.State[1] == '1'
-          hasBeenFlipped := gate.State[2] == '1'
-
-          // If power was received and the state wasn't already flipped, do this now.
-          if (powered && !hasBeenFlipped) {
-            hasBeenFlipped = true
-            r, s = s, r // Flip the state of the gate
-          } else if (!hasBeenFlipped) {
-            hasBeenFlipped = false
+          // Was set wire pulled high?
+          if len(gate.Inputs) > 1 && getWire(wires, gate.Inputs[1].Id) {
+            gate.State = fmt.Sprintf("%s1", string(gate.State[0]))
+            continue
+          }
+          // Was reset wire pulled high?
+          if len(gate.Inputs) > 2 && getWire(wires, gate.Inputs[2].Id) {
+            gate.State = fmt.Sprintf("%s0", string(gate.State[0]))
+            continue
           }
 
-          if (r) {
-            /* The R side of the latch is active */
+          // Neither was pulled high, so see if the main wire was and the flip flop should be
+          // flipped.
+          powered := getWire(wires, gate.Inputs[0].Id);
+
+          // Format for gate.State:
+          // bit at index 0: used for storing if in the last frame, the tflipflop was powered
+          // bit at index 1: used for storing the state of the flip flop
+          // (1 if the S side is active, 0 if the R side is active)
+
+          // Detect the risng edge
+          if powered && gate.State[0] == '0' {
+            var newState string
+            if gate.State[1] == '1' {
+              newState = "0"
+            } else {
+              newState = "1"
+            }
+
+            gate.State = fmt.Sprintf("1%s", newState)
+
+          // Detect hte falling edge
+          } else if !powered && gate.State[0] == '1' {
+            gate.State = fmt.Sprintf("0%s", string(gate.State[1]))
+          }
+
+          if (gate.State[1] == '1') {
+            /* The S side of the latch is active */
             setWire(wires, gate.Outputs[0].Id, true);
             if len(gate.Outputs) > 1 { /* set not q if passed */
               setWire(wires, gate.Outputs[1].Id, false);
             }
           } else {
-            /* The S side of the latch is active */
+            /* The R side of the latch is active */
             setWire(wires, gate.Outputs[0].Id, false);
             if len(gate.Outputs) > 1 { /* set not q if passed */
               setWire(wires, gate.Outputs[1].Id, true);
             }
           }
-
-          // Update the state with the updated values
-          gate.State = fmt.Sprintf("%d%d%d", r, s, hasBeenFlipped)
         }
       }
     }
