@@ -2,7 +2,6 @@ package main
 
 import (
   "fmt"
-  // "math/rand"
 )
 
 func setWire(wires []*Wire, id int, powered bool) {
@@ -23,22 +22,6 @@ func getWire(wires []*Wire, id int) bool {
   return false
 }
 
-func calculateGateHash(gates []*Gate) string {
-  hash := ""
-
-  // Calculate which gates in the slice are important, and add them to the hash
-  for _, gate := range gates {
-    if gate.Type == "BUILTIN_FUNCTION" && (gate.Label == "toggle" || gate.Label == "momentary") {
-      // Add the gate's state to the hash ( id,state; )
-      hash += fmt.Sprintf("%d,%s;", gate.Id, gate.State)
-    }
-  }
-
-  // Finally, add the gate slice length to the end of the hash
-  hash += fmt.Sprintf("%d", len(gates))
-  return hash
-}
-
 func calculateWireHash(wires []*Wire) string {
   hash := ""
 
@@ -51,11 +34,6 @@ func calculateWireHash(wires []*Wire) string {
 }
 
 func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
-  // Loop for a number of times. There's some randomness added here to try to make
-  // debugging of infinite looping constructs easier.
-  // loopCount := 150 + rand.Intn(5)
-  // for i := 0; i < loopCount; i++ {
-
   var oldHash string = ""
   var newHash string
   for {
