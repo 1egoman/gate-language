@@ -372,6 +372,27 @@ func TestBlockReturnCannotHaveNonExpressionTokens(t *testing.T) {
   if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 5:3 - Non-expression token ASSIGNMENT found after return. Stop.") { t.Error("Error: "+err.Error()) }
 }
 
+func TestBlockWithParameterExpansion(t *testing.T) {
+  result, err := Tokenizer(`block a(b[2]) {
+    let a = 1
+  }`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "BLOCK",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "a", "Params": "b0 b1", "OutputQuantity": 0, "InputQuantity": 2},
+      Children: &[]Node{
+        Node{Token: "ASSIGNMENT", Row: 5, Col: 2, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
+        Node{Token: "BOOL", Row: 13, Col: 2, Data: map[string]interface{}{"Value": true}},
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // Invocations
 func TestInvocation(t *testing.T) {
   result, err := Tokenizer(`foo(a b 1)`)

@@ -102,16 +102,53 @@ var TOKENS []Token = []Token{
     Name: "BLOCK",
     Type: WRAPPER_START,
     // block identifier(as many identifiers ay needed in here all space seperated) {
-    Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    // Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+    Match: regexp.MustCompile(`^block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
     GetData: func(match []string) map[string]interface{} {
-      // Calculate an input quantity
       inputQuantity := 0
+      var params []string
+
+      // Were params passed to the block?
       if len(match[2]) > 0 {
-        inputQuantity = len(strings.Split(strings.Trim(match[2], " \n\t"), " "))
+        // If so, take a look at each one and if it's special then process it.
+        for _, inp := range strings.Split(strings.Trim(match[2], " \n\t"), " ") {
+          if inp[len(inp)-1] == ']' {
+            // This parameter has an expansion at the end!
+
+            // Locate the expansion part of the param
+            startOfExpansion := strings.LastIndex(inp, "[") + 1
+            endOfExpansion := len(inp) - 1
+
+            // Read the expansion number in the expansion part
+            expansionAmount, err := strconv.ParseUint(
+              inp[startOfExpansion:endOfExpansion],
+              10, /* base 10 */
+              32, /* 32 bit number */
+            )
+            if err != nil {
+              panic(fmt.Sprintf("Could not parse '%s' as uint (the regex ensures that this is a uint, so this should never happen!)", inp[startOfExpansion:endOfExpansion]));
+            }
+
+            // Get the part of the parameter before the expansion
+            paramName := inp[:startOfExpansion-1]
+
+            // Perform the expansion.
+            // For example, `b[2]` is converted into `b0 b1`
+            for i := 0; i < int(expansionAmount); i++ {
+              params = append(params, fmt.Sprintf("%s%d", paramName, i))
+            }
+          } else {
+            // There's nothing special about this parameter, just pass it through like normal.
+            params = append(params, inp)
+          }
+        }
+
+        inputQuantity = len(params)
       }
+
       return map[string]interface{}{
         "Name": match[1],
-        "Params": match[2],
+        "Params": strings.Join(params, " "),
         "InputQuantity": inputQuantity,
         "OutputQuantity": 0, // Will be overridden within `BLOCK_END`
       };
