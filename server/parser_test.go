@@ -18,7 +18,7 @@ func TestParsingAnd(t *testing.T) {
     },
   }
 
-  gates, wires, outputs, err := Parse(&[]Node{ast}, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&[]Node{ast}, stack)
 
   // Verify error
   if err != nil {
@@ -62,6 +62,11 @@ func TestParsingAnd(t *testing.T) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", gates))
   }
 
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{}) {
+    t.Error(fmt.Sprintf("Calling contexts don't match! %+v", callingcontexts))
+  }
+
   // Verify outputs
   if !reflect.DeepEqual(outputs, []*Wire{
     &Wire{Id: 3},
@@ -88,7 +93,7 @@ func TestParsingVariable(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&[]Node{ast}, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&[]Node{ast}, stack)
 
   // Verify error
   if err != nil {
@@ -130,6 +135,11 @@ func TestParsingVariable(t *testing.T) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
   }
 
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{}) {
+    t.Error(fmt.Sprintf("Calling contexts don't match! %+v", callingcontexts))
+  }
+
   // Verify outputs
   if !reflect.DeepEqual(outputs, []*Wire{
     &Wire{Id: 2},
@@ -156,7 +166,7 @@ func TestAssigningVariable(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -188,6 +198,11 @@ func TestAssigningVariable(t *testing.T) {
     &Wire{Id: 1},
   }) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
+  }
+
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{}) {
+    t.Error(fmt.Sprintf("Calling contexts don't match! %+v", callingcontexts))
   }
 
   // Verify outputs
@@ -237,7 +252,7 @@ func TestAssigningVariableToInvokedBlock(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -288,6 +303,18 @@ func TestAssigningVariableToInvokedBlock(t *testing.T) {
     &Wire{Id: 3},
   }) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
+  }
+
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
   }
 
   // Verify outputs
@@ -349,7 +376,7 @@ func TestAssigningVariableToInvokedBlockWithMultipleValues(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -411,6 +438,18 @@ func TestAssigningVariableToInvokedBlockWithMultipleValues(t *testing.T) {
     &Wire{Id: 4},
   }) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
+  }
+
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
   }
 
   // Verify outputs
@@ -487,7 +526,7 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleTokens(t
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -584,6 +623,18 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleTokens(t
     t.Errorf(fmt.Sprintf("Unknown variable %s!", variable.Name))
   }
 
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
+  }
+
   // Verify outputs
   if !reflect.DeepEqual(outputs, []*Wire{}) {
     t.Error(fmt.Sprintf("Outputs don't match! %+v", gates))
@@ -649,7 +700,7 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleInvocati
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -782,6 +833,19 @@ func TestAssigningVariableToInvokedBlockWithMultipleValuesAcrossMultipleInvocati
     t.Errorf(fmt.Sprintf("Unknown variable %s!", variable.Name))
   }
 
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}}, /* first foo invocation */
+    {Id: 2, Name: "foo", Depth: 1, Parent: 0, Children: []int{}}, /* second foo invocation */
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
+  }
+
   // Verify outputs
   if !reflect.DeepEqual(outputs, []*Wire{}) {
     t.Error(fmt.Sprintf("Outputs don't match! %+v", gates))
@@ -840,7 +904,7 @@ func TestAssigningVariableToInvokedBlockWithComplicatedBlock(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -911,6 +975,18 @@ func TestAssigningVariableToInvokedBlockWithComplicatedBlock(t *testing.T) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
   }
 
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
+  }
+
   // Verify outputs
   if !reflect.DeepEqual(outputs, []*Wire{}) {
     t.Error(fmt.Sprintf("Outputs don't match! %+v", gates))
@@ -954,7 +1030,7 @@ func TestBlockDefinitionByItselfDoesntCreateGatesOrWires(t *testing.T) {
   wireId = 0
   gateId = 0
   stackFrameId = 0
-  gates, wires, outputs, err := Parse(&ast, stack)
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
 
   // Verify error
   if err != nil {
@@ -975,6 +1051,16 @@ func TestBlockDefinitionByItselfDoesntCreateGatesOrWires(t *testing.T) {
   // Verify wires
   if !reflect.DeepEqual(wires, []*Wire{}) {
     t.Error(fmt.Sprintf("Wires don't match! %+v", wires))
+  }
+
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{}) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
   }
 
   // Verify outputs
