@@ -319,7 +319,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
           if variable.Name == name {
             wire := rhsValues[ct]
             newWire := variable.Value
-            fmt.Println("* Assigning to variable that already exists:", name, "wire =", wire, "newWire =", newWire)
+            // fmt.Println("* Assigning to variable that already exists:", name, "wire =", wire, "newWire =", newWire)
 
             // Rewrite all gates that have `wire` to `newWire`
             for ct := 0; ct < len(gates); ct++ {
