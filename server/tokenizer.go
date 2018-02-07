@@ -8,8 +8,8 @@ import (
   "strings"
 )
 
-var NO_DATA func([]string) map[string]interface{} = func(m []string) map[string]interface{} {
-  return map[string]interface{}{}
+var NO_DATA func([]string) (map[string]interface{}, error) = func(m []string) (map[string]interface{}, error) {
+  return map[string]interface{}{}, nil
 }
 
 // A regular expression that matches whitespace at the start and end of a string.
@@ -28,206 +28,268 @@ type Token struct {
   Name string
   Type TokenType
   Match *regexp.Regexp
-  GetData func([]string) map[string]interface{}
-  SideEffect func([]string, *TokenizerFrame)
+  GetData func([]string) (map[string]interface{}, error)
+  SideEffect func([]string, *TokenizerFrame) error
 }
 
-var TOKENS []Token = []Token{
-  Token{
-    Name: "MULTI_COMMENT",
-    Type: SINGLE,
-    Match: regexp.MustCompile(`(?s)^/\*(.*)\*/`),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{
-        // Remove leading and trailing whitespace from comment.
-        "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
-      };
+var TOKENS []Token
+func init() {
+  TOKENS = []Token{
+    Token{
+      Name: "MULTI_COMMENT",
+      Type: SINGLE,
+      Match: regexp.MustCompile(`(?s)^/\*(.*)\*/`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{
+          // Remove leading and trailing whitespace from comment.
+          "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
+        }, nil;
+      },
     },
-  },
-  Token{
-    Name: "SINGLE_COMMENT",
-    Type: SINGLE,
-    Match: regexp.MustCompile(`^\/\/([^\n]*)`),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{
-        // Remove leading and trailing whitespace from comment.
-        "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
-      };
+    Token{
+      Name: "SINGLE_COMMENT",
+      Type: SINGLE,
+      Match: regexp.MustCompile(`^\/\/([^\n]*)`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{
+          // Remove leading and trailing whitespace from comment.
+          "Message": MATCH_WHITESPACE_AT_ENDS.ReplaceAllString(match[1], ``),
+        }, nil
+      },
     },
-  },
 
-  Token{Name: "OP_AND", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
-  Token{Name: "OP_OR", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
-  Token{Name: "OP_NOT", Type: UNARY_OPERATOR, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
+    Token{Name: "OP_AND", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^and"), GetData: NO_DATA},
+    Token{Name: "OP_OR", Type: BINARY_OPERATOR, Match: regexp.MustCompile("^or"), GetData: NO_DATA},
+    Token{Name: "OP_NOT", Type: UNARY_OPERATOR, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
 
-  Token{
-    Name: "GROUP",
-    Type: WRAPPER_START,
-    Match: regexp.MustCompile("^\\("),
-    GetData: NO_DATA,
+    Token{
+      Name: "GROUP",
+      Type: WRAPPER_START,
+      Match: regexp.MustCompile("^\\("),
+      GetData: NO_DATA,
 
-    // Groups with an identifier right before them get converted into invocations.
-    SideEffect: func(match []string, stackframe *TokenizerFrame) {
-      // Assert that the stackframe isn't nil.
-      if stackframe.Nodes == nil { return }
+      // Groups with an identifier right before them get converted into invocations.
+      SideEffect: func(match []string, stackframe *TokenizerFrame) error {
+        // Assert that the stackframe isn't nil.
+        if stackframe.Nodes == nil { return nil }
 
-      // Assert that the stackframe has at least two nodes within.
-      nodes := *stackframe.Nodes
-      if len(nodes) < 2 { return }
+        // Assert that the stackframe has at least two nodes within.
+        nodes := *stackframe.Nodes
+        if len(nodes) < 2 { return nil }
 
-      // Make sure the most recent node in the stack frame is a group
-      mostRecentNode := &nodes[len(nodes) - 1]
-      if mostRecentNode.Token != "GROUP" { return }
+        // Make sure the most recent node in the stack frame is a group
+        mostRecentNode := &nodes[len(nodes) - 1]
+        if mostRecentNode.Token != "GROUP" { return nil }
 
-      // Check to see if the token before the group was an identifier. If so, then this group isn't
-      // a group it's an invocation!
-      // identifier ()  =>  identifier()
-      //            /\- Group   /\- Invocation!
-      secondToMostRecentNode := nodes[len(nodes) - 2]
-      if secondToMostRecentNode.Token != "IDENTIFIER" { return }
+        // Check to see if the token before the group was an identifier. If so, then this group isn't
+        // a group it's an invocation!
+        // identifier ()  =>  identifier()
+        //            /\- Group   /\- Invocation!
+        secondToMostRecentNode := nodes[len(nodes) - 2]
+        if secondToMostRecentNode.Token != "IDENTIFIER" { return nil }
 
-      // The group is an invocation!
-      mostRecentNode.Token = "INVOCATION"
-      mostRecentNode.Data["Name"] = secondToMostRecentNode.Data["Value"]
-      mostRecentNode.Row = secondToMostRecentNode.Row
-      mostRecentNode.Col = secondToMostRecentNode.Col
+        // The group is an invocation!
+        mostRecentNode.Token = "INVOCATION"
+        mostRecentNode.Data["Name"] = secondToMostRecentNode.Data["Value"]
+        mostRecentNode.Row = secondToMostRecentNode.Row
+        mostRecentNode.Col = secondToMostRecentNode.Col
 
-      // Delete the penultimate node (the IDENTIFIER)
-      *stackframe.Nodes = append(nodes[:len(nodes)-2], nodes[len(nodes)-1])
+        // Delete the penultimate node (the IDENTIFIER)
+        *stackframe.Nodes = append(nodes[:len(nodes)-2], nodes[len(nodes)-1])
+
+        return nil
+      },
     },
-  },
-  Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
+    Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
 
-  Token{
-    Name: "BLOCK",
-    Type: WRAPPER_START,
-    // block identifier(as many identifiers ay needed in here all space seperated) {
-    // Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
-    Match: regexp.MustCompile(`^block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
-    GetData: func(match []string) map[string]interface{} {
-      inputQuantity := 0
-      var params []string
+    Token{
+      Name: "BLOCK",
+      Type: WRAPPER_START,
+      // block identifier(as many identifiers ay needed in here all space seperated) {
+      Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
+      // Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        inputQuantity := 0
+        var params []string
 
-      // Were params passed to the block?
-      if len(match[2]) > 0 {
-        // If so, take a look at each one and if it's special then process it.
-        for _, inp := range strings.Split(strings.Trim(match[2], " \n\t"), " ") {
-          if inp[len(inp)-1] == ']' {
-            // This parameter has an expansion at the end!
+        // Were params passed to the block?
+        if len(match[2]) > 0 {
+          // If so, take a look at each one and if it's special then process it.
+          for _, inp := range strings.Split(strings.Trim(match[2], " \n\t"), " ") {
+            if inp[len(inp)-1] == ']' {
+              // This parameter has an expansion at the end!
 
-            // Locate the expansion part of the param
-            startOfExpansion := strings.LastIndex(inp, "[") + 1
-            endOfExpansion := len(inp) - 1
+              // Locate the expansion part of the param
+              startOfExpansion := strings.LastIndex(inp, "[") + 1
+              endOfExpansion := len(inp) - 1
 
-            // Read the expansion number in the expansion part
-            expansionAmount, err := strconv.ParseUint(
-              inp[startOfExpansion:endOfExpansion],
-              10, /* base 10 */
-              32, /* 32 bit number */
-            )
-            if err != nil {
-              panic(fmt.Sprintf("Could not parse '%s' as uint (the regex ensures that this is a uint, so this should never happen!)", inp[startOfExpansion:endOfExpansion]));
+              // Read the expansion number in the expansion part
+              expansionAmount, err := strconv.ParseUint(
+                inp[startOfExpansion:endOfExpansion],
+                10, /* base 10 */
+                32, /* 32 bit number */
+              )
+              if err != nil {
+                panic(fmt.Sprintf("Could not parse '%s' as uint (the regex ensures that this is a uint, so this should never happen!)", inp[startOfExpansion:endOfExpansion]));
+              }
+
+              // Get the part of the parameter before the expansion
+              paramName := inp[:startOfExpansion-1]
+
+              // Perform the expansion.
+              // For example, `b[2]` is converted into `b0 b1`
+              for i := 0; i < int(expansionAmount); i++ {
+                params = append(params, fmt.Sprintf("%s%d", paramName, i))
+              }
+            } else {
+              // There's nothing special about this parameter, just pass it through like normal.
+              params = append(params, inp)
             }
+          }
 
-            // Get the part of the parameter before the expansion
-            paramName := inp[:startOfExpansion-1]
+          inputQuantity = len(params)
+        }
 
-            // Perform the expansion.
-            // For example, `b[2]` is converted into `b0 b1`
-            for i := 0; i < int(expansionAmount); i++ {
-              params = append(params, fmt.Sprintf("%s%d", paramName, i))
-            }
-          } else {
-            // There's nothing special about this parameter, just pass it through like normal.
-            params = append(params, inp)
+        return map[string]interface{}{
+          "Name": match[1],
+          "Params": strings.Join(params, " "),
+          "InputQuantity": inputQuantity,
+          "OutputQuantity": 0, // Will be overridden within `BLOCK_END`
+        }, nil
+      },
+    },
+    Token{
+      Name: "BLOCK_END",
+      Type: WRAPPER_END,
+      Match: regexp.MustCompile("^\\}"),
+      GetData: NO_DATA,
+      SideEffect: func(match []string, stackframe *TokenizerFrame) error {
+        // Assert that the stackframe isn't nil.
+        if stackframe.Nodes == nil { return nil }
+
+        // Assert that the stackframe has nodes within.
+        nodes := *stackframe.Nodes
+        if len(nodes) == 0 { return nil }
+
+        // Get the most recent node in the stack frame.
+        mostRecentNode := nodes[len(nodes) - 1]
+        if mostRecentNode.Token != "BLOCK" { return nil }
+        blockChildren := *(mostRecentNode.Children)
+
+        // Within the block that's beng closed, was there a return? And, if so, what index token was
+        // it?
+        returnIndex := -1
+        for ct, node := range blockChildren {
+          if node.Token == "BLOCK_RETURN" {
+            returnIndex = ct
+            break;
           }
         }
 
-        inputQuantity = len(params)
-      }
-
-      return map[string]interface{}{
-        "Name": match[1],
-        "Params": strings.Join(params, " "),
-        "InputQuantity": inputQuantity,
-        "OutputQuantity": 0, // Will be overridden within `BLOCK_END`
-      };
-    },
-  },
-  Token{
-    Name: "BLOCK_END",
-    Type: WRAPPER_END,
-    Match: regexp.MustCompile("^\\}"),
-    GetData: NO_DATA,
-    SideEffect: func(match []string, stackframe *TokenizerFrame) {
-      // Assert that the stackframe isn't nil.
-      if stackframe.Nodes == nil { return }
-
-      // Assert that the stackframe has nodes within.
-      nodes := *stackframe.Nodes
-      if len(nodes) == 0 { return }
-
-      // Get the most recent node in the stack frame.
-      mostRecentNode := nodes[len(nodes) - 1]
-      if mostRecentNode.Token != "BLOCK" { return }
-      blockChildren := *(mostRecentNode.Children)
-
-      // Within the block that's beng closed, was there a return? And, if so, what index token was
-      // it?
-      returnIndex := -1
-      for ct, node := range blockChildren {
-        if node.Token == "BLOCK_RETURN" {
-          returnIndex = ct
-          break;
+        if returnIndex == -1 {
+          // No return was found, so no tokens are beign returned.
+          mostRecentNode.Data["OutputQuantity"] = 0
+        } else {
+          // Now that the output token location is known, calculate how many tokens were after the
+          // return, and that's the number of tokens that are being returned.
+          mostRecentNode.Data["OutputQuantity"] = (len(blockChildren) - 1) - returnIndex
         }
-      }
 
-      if returnIndex == -1 {
-        // No return was found, so no tokens are beign returned.
-        mostRecentNode.Data["OutputQuantity"] = 0
-      } else {
-        // Now that the output token location is known, calculate how many tokens were after the
-        // return, and that's the number of tokens that are being returned.
-        mostRecentNode.Data["OutputQuantity"] = (len(blockChildren) - 1) - returnIndex
-      }
+        return nil
+      },
     },
-  },
-  Token{
-    Name: "BLOCK_RETURN",
-    Type: SINGLE,
-    Match: regexp.MustCompile("^return"),
-    GetData: NO_DATA,
-  },
+    Token{
+      Name: "BLOCK_RETURN",
+      Type: SINGLE,
+      Match: regexp.MustCompile("^return"),
+      GetData: NO_DATA,
+    },
 
-  Token{
-    Name: "ASSIGNMENT",
-    Type: SINGLE,
-    Match: regexp.MustCompile(`^let +(([A-Za-z_][A-Za-z0-9_]* +)*[A-Za-z_][A-Za-z0-9_]*) ?= ?`),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{
-        "Names": match[1],
-        "Values": []Node{},
-      };
+    Token{
+      Name: "IMPORT",
+      Type: SINGLE,
+      Match: regexp.MustCompile(`^import\s+(.+)`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{
+          "Path": match[1],
+        }, nil
+      },
+      SideEffect: func(match []string, stackframe *TokenizerFrame) error {
+        // Assert that the stackframe isn't nil.
+        if stackframe.Nodes == nil { return nil }
+
+        // Verify that the path exists
+        path := match[1]
+        isStdLib := regexp.MustCompile(`^[a-zA-Z_]+$`).MatchString(path)
+        if isRunningInServer && !isStdLib {
+          return errors.New(fmt.Sprintf("Server cannot import local path '%s'", path))
+        }
+
+        if isStdLib {
+          // Look up the standard lib function
+          input, ok := STANDARD_LIBRARY[path]
+          if !ok {
+            return errors.New(fmt.Sprintf("No such standard lib collection found: %s", path))
+          }
+
+          // Tokenize the contents of the standard library
+          // TODO: Ideally, this would be a step that happens when the compiler starts and not on
+          // every `import`.
+          stdLibNodes, err := Tokenizer(input)
+          if err != nil {
+            return err
+          }
+
+          // Now, add the tokens from the standard library into the main program.
+
+          // First, remove the import token. It's served its purpose.
+          nodes := (*stackframe).Nodes
+          nodesWithImportTokenRemoved := (*nodes)[:len(*nodes)-1]
+
+          // Add the tokens that were generated by tokenizing the library code
+          newNodes := append(nodesWithImportTokenRemoved, (*stdLibNodes)...)
+
+          // Reassign the slice to the new slice that was created
+          *nodes = newNodes
+        } else {
+          return errors.New("Currently, import only allows including standard library functions.")
+        }
+
+        return nil
+      },
     },
-  },
-  Token{
-    Name: "IDENTIFIER",
-    Type: SINGLE,
-    Match: regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*"),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{"Value": match[0]};
+
+    Token{
+      Name: "ASSIGNMENT",
+      Type: SINGLE,
+      Match: regexp.MustCompile(`^let +(([A-Za-z_][A-Za-z0-9_]* +)*[A-Za-z_][A-Za-z0-9_]*) ?= ?`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{
+          "Names": match[1],
+          "Values": []Node{},
+        }, nil
+      },
     },
-  },
-  Token{
-    Name: "BOOL",
-    Type: SINGLE,
-    Match: regexp.MustCompile("^(1|0)"),
-    GetData: func(match []string) map[string]interface{} {
-      return map[string]interface{}{
-        "Value": match[1] == "1",
-      };
+
+    Token{
+      Name: "IDENTIFIER",
+      Type: SINGLE,
+      Match: regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*"),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{"Value": match[0]}, nil
+      },
     },
-  },
+    Token{
+      Name: "BOOL",
+      Type: SINGLE,
+      Match: regexp.MustCompile("^(1|0)"),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{
+          "Value": match[1] == "1",
+        }, nil
+      },
+    },
+  }
 }
 var RESERVED_WORDS []string = []string{"let", "block", "return"}
 
@@ -396,7 +458,7 @@ func Tokenizer(input string) (*[]Node, error) {
         currentRow = 1
         code = code[1:]
       } else {
-        break;
+        break
       }
     }
 
@@ -418,7 +480,10 @@ func Tokenizer(input string) (*[]Node, error) {
         // fmt.Println("MATCHED TOKEN", token)
         // The token we looped over matched!
         if token.Type == SINGLE || token.Type == UNARY_OPERATOR {
-          data := token.GetData(result)
+          data, err := token.GetData(result)
+          if err != nil {
+            return nil, err
+          }
 
           // Add a right hand side value for every unary operator.
           if token.Type == UNARY_OPERATOR {
@@ -453,7 +518,10 @@ func Tokenizer(input string) (*[]Node, error) {
           leftHandSide := childrenValue[len(childrenValue) - 1]
           *children = childrenValue[:len(childrenValue) - 1]
 
-          data := token.GetData(result)
+          data, err := token.GetData(result)
+          if err != nil {
+            return nil, err
+          }
           data["LeftHandSide"] = leftHandSide
           data["RightHandSide"] = nil
 
@@ -465,12 +533,17 @@ func Tokenizer(input string) (*[]Node, error) {
             Children: nil,
           })
         } else if token.Type == WRAPPER_START {
+          data, err := token.GetData(result)
+          if err != nil {
+            return nil, err
+          }
+
           // Create the wrapper start token.
           value := append(*children, Node{
             Token: token.Name,
             Row: currentRow,
             Col: currentCol,
-            Data: token.GetData(result),
+            Data: data,
             Children: &[]Node{},
           })
 
