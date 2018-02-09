@@ -30,7 +30,7 @@ var STANDARD_LIBRARY map[string]string = map[string]string {
       let carry = (carry1 or carry2)
       return sum2 carry
     }
-    block adder4(a0 a1 a2 a3 b0 b1 b2 b3) {
+    block adder4(a[4] b[4]) {
       let sum1 carry1 = adder(a0 b0 0)
       let sum2 carry2 = adder(a1 b1 carry1)
       let sum4 carry4 = adder(a2 b2 carry2)
@@ -42,7 +42,7 @@ var STANDARD_LIBRARY map[string]string = map[string]string {
     // The twos complement is a helpful value when adding numbers within a computer. It provides a
     // way for a computer to represent a negative value in an addition operation. It's computed by
     // performing ~a + 1.
-		block twoscomplement4(a0 a1 a2 a3) {
+		block twoscomplement4(a[4]) {
 			let b0 b1 b2 b3 = adder4(
 				(not a0) (not a1) (not a2) (not a3) // Take the bitwise not of the input
 				0        0        0        1        // Add one to it
@@ -53,19 +53,19 @@ var STANDARD_LIBRARY map[string]string = map[string]string {
   "latch": `
     block srlatch(s r) {
       let q = (not (r or nq))
-      let nq = (not (s or nq))
+      let nq = (not (s or q))
       return q
     }
     block srlatch2(s r) {
       let q = (not (r or nq))
-      let nq = (not (s or nq))
+      let nq = (not (s or q))
       return q nq
     }
 
     block dlatch(clock d) {
       let s r = (clock and d) (clock and (not d))
       let q = (not (r or nq))
-      let nq = (not (s or nq))
+      let nq = (not (s or q))
       return q
     }
     block dlatch2(clock d) {
@@ -73,6 +73,16 @@ var STANDARD_LIBRARY map[string]string = map[string]string {
       let q = (not (r or nq))
       let nq = (not (s or nq))
       return q nq
+    }
+
+    block shiftregister4(clock input) {
+      let o0 = dlatch(clock input)
+      let o1 = dlatch(clock o0)
+      let o2 = dlatch(clock o1)
+      let o3 = dlatch(clock o2)
+      let output = dlatch(clock o3)
+
+      return o0 o1 o2 o3 output
     }
   `,
 }

@@ -46,32 +46,28 @@ function createEditor(element) {
   const editor = CodeMirror(element, {
     lineNumbers: true,
     value: `
-    /*
-block counter(clock reset) {
-  let q1 nq1 = tflipflop(clock reset)
-  led(nq1)
-  let q2 nq2 = tflipflop(q1 reset)
-  led(nq2)
-  let q3 nq3 = tflipflop((q1 and q2) reset)
-  led(nq3)
-  let q4 nq4 = tflipflop(((q1 and q2) and q3) reset)
-  led(nq4)
-  
-  return nq1 nq2 nq3 nq4
+import adder
+
+block toggle4() {
+  let a b c d = toggle() toggle() toggle() toggle()
+  return a b c d
 }
 
-let q1 q2 q3 q4 = counter(momentary() momentary())
-led(q1)
-led(q2)
-led(q3)
-led(q4) */
-
-let bla = tflipflop(toggle())
-led(bla)
-
-let a = toggle()
-let b = (a and 1)
-led(b)
+block main() {
+  let a0 a1 a2 a3 = toggle4()
+  let b0 b1 b2 b3 = toggle4()
+  
+  let c0 c1 c2 c3 = adder4(
+    a0 a1 a2 a3
+    b0 b1 b2 b3
+  )
+  
+  led(c0)
+  led(c1)
+  led(c2)
+  led(c3)
+}
+main()
     `,
     mode: 'bitlang',
     theme: 'monokai',
