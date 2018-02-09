@@ -67,8 +67,9 @@ type StackFrame struct {
   Blocks []*Block
 }
 
-var BUILTIN_FUNCTION_NAMES []string = []string{"led", "wave", "momentary", "toggle", "tflipflop"}
-var BUILTIN_FUNCTION_RETURN_NUMBER []int=[]int{0    , 1     , 1          , 1       , 2}
+var BUILTIN_FUNCTION_NAMES []string =        []string{"led", "wave", "momentary", "toggle", "tflipflop"}
+var BUILTIN_FUNCTION_MINIMUM_INPUT_NUMBER []int=[]int{1    , 1     , 1          , 0       , 2}
+var BUILTIN_FUNCTION_RETURN_NUMBER []int=       []int{0    , 1     , 1          , 1       , 2}
 
 func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingContext, []*Wire, error) {
   gates := []*Gate{}
@@ -390,6 +391,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
             wires = append(wires, paramWires...)
             contexts = append(contexts, paramContexts...)
             builtinInputs = append(builtinInputs, paramOutputs...)
+          }
+
+          // Ensure that the builtin was called with enough parameters
+          if len(builtinInputs) < BUILTIN_FUNCTION_MINIMUM_INPUT_NUMBER[builtinIndex] {
+            return nil, nil, nil, nil, errors.New(fmt.Sprintf(
+              "The buitin block at %d:%d wasn't called with enough parameters (expected at least %d, was called with %d). Stop.",
+              input.Row,
+              input.Col,
+              BUILTIN_FUNCTION_RETURN_NUMBER[builtinIndex],
+              len(builtinInputs),
+            ))
           }
 
           // Create a new gate with those inputs from `builtinInputs`
