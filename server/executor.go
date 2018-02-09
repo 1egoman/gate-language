@@ -36,7 +36,12 @@ func calculateWireHash(wires []*Wire) string {
 func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
   var oldHash string = ""
   var newHash string
-  for {
+
+  // Define a max iteration count. This provides a ceiling that can be used to halt infinite
+  // recursions.
+  reasonableMaxIterationCount := (len(wires) * 5) + (len(gates) * 5)
+
+  for iterationCount := 0; iterationCount < reasonableMaxIterationCount; iterationCount++ {
     // Calculate a hash of the state of all the wires.
     newHash = calculateWireHash(wires)
 

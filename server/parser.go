@@ -68,7 +68,7 @@ type StackFrame struct {
 }
 
 var BUILTIN_FUNCTION_NAMES []string =        []string{"led", "wave", "momentary", "toggle", "tflipflop"}
-var BUILTIN_FUNCTION_MINIMUM_INPUT_NUMBER []int=[]int{1    , 1     , 1          , 0       , 2}
+var BUILTIN_FUNCTION_MINIMUM_INPUT_NUMBER []int=[]int{1    , 1     , 0          , 0       , 2}
 var BUILTIN_FUNCTION_RETURN_NUMBER []int=       []int{0    , 1     , 1          , 1       , 2}
 
 func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingContext, []*Wire, error) {
