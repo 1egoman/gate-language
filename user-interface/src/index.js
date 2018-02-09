@@ -275,7 +275,7 @@ Object.defineProperty(window, 'gates', {
 
 
 
-let data = {Gates: [], Wires: [], Outputs: []};
+let data = {Gates: [], Wires: [], Contexts: [], Outputs: []};
 let error = null;
 editor.on('change', () => {
   const value = editor.getValue();
