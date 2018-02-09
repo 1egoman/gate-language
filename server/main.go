@@ -129,6 +129,8 @@ func act(input string, tokenize bool, verbose bool) (*Summary, error) {
   return &summary, nil
 }
 
+var isRunningInServer bool = false
+
 func main() {
   var tokenize = flag.Bool("tokenize", false, "Only tokenize the input, don't actually convert to gates.")
   var verbose = flag.Bool("verbose", false, "Print lots of debugging output.")
@@ -138,6 +140,7 @@ func main() {
   args := flag.Args()
 
   if *server {
+    isRunningInServer = true
     http.HandleFunc("/v1/compile", func(w http.ResponseWriter, r *http.Request) {
       //Allow CORS here By * or specific origin
       w.Header().Set("Access-Control-Allow-Origin", "*")
