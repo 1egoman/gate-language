@@ -87,6 +87,11 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
             gate.State = "off"
           }
         } else if (gate.Label == "tflipflop") {
+          // Ensure that the tflipflop has enough inputs. This is also enforced at compile-time.
+          if len(gate.Inputs) < 2 {
+            break
+          }
+
           // Set a default state for the flipflop if it hasn't been set already.
           if len(gate.State) == 0 {
             gate.State = "10"
