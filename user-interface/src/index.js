@@ -26,7 +26,7 @@ function createEditor(element) {
       {regex: /(?:1|0)/, token: "atom"},
       {regex: /\/\*/, token: "comment", next: "comment"},
       {regex: /\/\/[^\n]*/, token: "comment"},
-      {regex: /(?:and|or|not)/, token: "property"},
+      {regex: /(?:and|or|not|import)/, token: "property"},
       {regex: /[A-Za-z_][A-Za-z0-9_]*/, token: "variable-3"},
       {regex: /[{[(]/, indent: true},
       {regex: /[}\])]/, dedent: true},

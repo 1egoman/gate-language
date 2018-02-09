@@ -106,8 +106,7 @@ func init() {
       Name: "BLOCK",
       Type: WRAPPER_START,
       // block identifier(as many identifiers ay needed in here all space seperated) {
-      Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*)\s*)*([A-Za-z_][A-Za-z0-9_]*)?)\)\s*\{`),
-      // Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
+      Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
       GetData: func(match []string) (map[string]interface{}, error) {
         inputQuantity := 0
         var params []string
@@ -237,7 +236,7 @@ func init() {
           // every `import`.
           stdLibNodes, err := Tokenizer(input)
           if err != nil {
-            return err
+            return errors.New(fmt.Sprintf("Error in tokenizng import '%s': %s", path, err))
           }
 
           // Now, add the tokens from the standard library into the main program.
@@ -606,7 +605,10 @@ func Tokenizer(input string) (*[]Node, error) {
 
         // Run any custom side effects
         if token.SideEffect != nil {
-          token.SideEffect(result, &stacks[len(stacks)-1])
+          err := token.SideEffect(result, &stacks[len(stacks)-1])
+          if err != nil {
+            return nil, err
+          }
         }
 
         // If the token we just added to children is an expression, and the previous token is a
@@ -650,8 +652,8 @@ func Tokenizer(input string) (*[]Node, error) {
 
     // No token was able to match (and break out of the loop above), so throw an error.
     displayCode := code
-    if len(displayCode) > 10 {
-      displayCode = displayCode[10:]
+    if len(displayCode) > 30 {
+      displayCode = displayCode[:30]
     }
     return nil, errors.New(fmt.Sprintf(
       "Error: No such token found at %d:%d - `%s`. Stop.",
@@ -683,6 +685,16 @@ func Tokenizer(input string) (*[]Node, error) {
   return root, nil
 }
 
+// Similar to `regexp.MustCompile`, this function accepts input that must successfullt tokenize, and
+// if it doesn't, it panics.
+func MustTokenize(input string) *[]Node {
+  nodes, err := Tokenizer(input)
+  if err != nil {
+    panic(err)
+  }
+  return nodes
+}
+
 func PrintAst(tokens *[]Node, indent int, prefix string) {
   if tokens == nil {
     for i := 0; i < indent; i++ { fmt.Printf("  ") }
@@ -707,15 +719,4 @@ func PrintAst(tokens *[]Node, indent int, prefix string) {
       PrintAst(&[]Node{value}, indent + 1, "RHS")
     }
   }
-}
-
-
-func main1() {
-  result, err := Tokenizer(`
-  let a = 1
-  a
-  `)
-  fmt.Println("Error: ", err)
-  fmt.Println("Results:")
-  PrintAst(result, 0, "")
 }
