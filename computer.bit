@@ -1,0 +1,88 @@
+import counter
+
+block do_bits_match(a b) {
+  let result = (
+    (a and b) or
+    ((not a) and (not b))
+  )
+  return result
+}
+
+block is_instruction_active(counter[4] selector[4]) {
+  // See if each place in the counter matches the selecto
+  let check0 = do_bits_match(counter0 selector0)
+  let check1 = do_bits_match(counter1 selector1)
+  let check2 = do_bits_match(counter2 selector2)
+  let check3 = do_bits_match(counter3 selector3)
+
+  // Make sure all bits match
+  let result = (((check0 and check1) and check2) and check3)
+  return result
+}
+
+block main(clock) {
+  // A counter to step through the instructions
+  let c1 c2 c4 c8 = counter8(clock 0)
+
+  // get nth instruction
+  let is_on_instruction_1 = is_instruction_active(c1 c2 c4 c8 1 0 0 0) // One in binary = 0001
+  let is_on_instruction_2 = is_instruction_active(c1 c2 c4 c8 0 1 0 0) // Two in binary = 0010
+  let is_on_instruction_3 = is_instruction_active(c1 c2 c4 c8 1 1 0 0) // Three in binary = 0011
+
+  led(is_on_instruction_2)
+
+  // For each wire on each output, only allow the value to express itself is the instruction is
+  // active. For example, let's say that instruction one is active. If this is the case, then all
+  // output blocks that end in `_1` will pass the first step of their and condition and let the
+  // second value be stored in `output*_1`. Every other output variable will be false, because the
+  // first contition won't evaluate to be true.
+
+  let output0_1 = (is_on_instruction_1 and 0)
+  let output1_1 = (is_on_instruction_1 and 0)
+  let output2_1 = (is_on_instruction_1 and 0)
+  let output3_1 = (is_on_instruction_1 and 0)
+  let output4_1 = (is_on_instruction_1 and 0)
+  let output5_1 = (is_on_instruction_1 and 0)
+  let output6_1 = (is_on_instruction_1 and 0)
+  let output7_1 = (is_on_instruction_1 and 0)
+
+  let output0_2 = (is_on_instruction_2 and 0)
+  let output1_2 = (is_on_instruction_2 and 0)
+  let output2_2 = (is_on_instruction_2 and 0)
+  let output3_2 = (is_on_instruction_2 and 0)
+  let output4_2 = (is_on_instruction_2 and 0)
+  let output5_2 = (is_on_instruction_2 and 0)
+  let output6_2 = (is_on_instruction_2 and 0)
+  let output7_2 = (is_on_instruction_2 and 0)
+  
+  let output0_3 = (is_on_instruction_3 and 0)
+  let output1_3 = (is_on_instruction_3 and 0)
+  let output2_3 = (is_on_instruction_3 and 0)
+  let output3_3 = (is_on_instruction_3 and 0)
+  let output4_3 = (is_on_instruction_3 and 0)
+  let output5_3 = (is_on_instruction_3 and 0)
+  let output6_3 = (is_on_instruction_3 and 0)
+  let output7_3 = (is_on_instruction_3 and 0)
+  
+  // Combine all the outputs lines together for each place. Since aech non-active line will be zero,
+  // it will effectively cancel out it's value in the below calculation.
+  let output0 = ((output0_1 or output0_2) or output0_3)
+  let output1 = ((output1_1 or output1_2) or output1_3)
+  let output2 = ((output2_1 or output2_2) or output2_3)
+  let output3 = ((output3_1 or output3_2) or output3_3)
+  let output4 = ((output4_1 or output4_2) or output4_3)
+  let output5 = ((output5_1 or output5_2) or output5_3)
+  let output6 = ((output6_1 or output6_2) or output6_3)
+  let output7 = ((output7_1 or output7_2) or output7_3)
+  
+  // Show the state of the currently selected instruction
+  led(output0)
+  led(output1)
+  led(output2)
+  led(output3)
+  led(output4)
+  led(output5)
+  led(output6)
+  led(output7)
+}
+main(momentary())
