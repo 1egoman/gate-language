@@ -1,6 +1,7 @@
 package main
 
 import (
+  "os"
   "fmt"
   "encoding/json"
   "flag"
@@ -18,15 +19,10 @@ type Summary struct {
   Outputs []*Wire
 }
 
-func act(input string, tokenize bool, verbose bool) (*Summary, error) {
+func run(input string, verbose bool) (*Summary, error) {
   result, err := Tokenizer(input)
   if err != nil {
     return nil, err
-  }
-
-  if tokenize {
-    PrintAst(result, 0, "")
-    return nil, nil
   }
 
   if verbose {
@@ -131,20 +127,150 @@ func act(input string, tokenize bool, verbose bool) (*Summary, error) {
 
 var isRunningInServer bool = false
 
+func help(subcomponent string) {
+  dollar0 := os.Args[0]
+  switch subcomponent {
+  case "build":
+    fmt.Printf("Usage: %s build <file.bit> [--verbose]", dollar0)
+    fmt.Println()
+    fmt.Println("Compiles lovelace source into a list of gates and wires that can be executed.")
+    fmt.Println()
+    fmt.Println("Flags:")
+    fmt.Println("   --verbose  Print debugging information")
+
+  case "tokenize":
+    fmt.Printf("Usage: %s tokenize <file.bit>", dollar0)
+    fmt.Println()
+    fmt.Println("Tokenizes lovelace source into an array of tokens. This is mostly useful for debugging lovelace itself when it won't parse a known-good file.")
+
+  case "serve":
+    fmt.Printf("Usage: %s serve [--port 8080] [--verbose]", dollar0)
+    fmt.Println()
+    fmt.Println("Runs a http server that can be used to remotely compile and run lovelace ast. The server exposes two http endpoints:")
+    fmt.Println(" POST /v1/compile, which compiles any lovelace source included in the request into ast.")
+    fmt.Println(" POST /v1/run, which executes any ast, returning the state of all wires.")
+    fmt.Println()
+    fmt.Println("Usage Examples:")
+    fmt.Println("The below request compiles the program led(toggle()) into two gates (toggle switch and led) and one wire connecting them:")
+    fmt.Println()
+    fmt.Println("$ curl http://localhost:8080/v1/compile -H 'Accept: application/json' -d 'led(toggle())'")
+    fmt.Println(`{"Gates":[{"Id":1,"Type":"BUILTIN_FUNCTION","Label":"toggle","Inputs":[],"Outputs":[{"Id":1,"Desc":"","Start":null,"End":null,"Powered":false}],"CallingContext":0,"State":""},{"Id":2,"Type":"BUILTIN_FUNCTION","Label":"led","Inputs":[{"Id":1,"Desc":"","Start":null,"End":null,"Powered":false}],"Outputs":[],"CallingContext":0,"State":""}],"Wires":[{"Id":1,"Desc":"","Start":null,"End":null,"Powered":false}],"Contexts":null,"Outputs":[]}`)
+    fmt.Println()
+    fmt.Println("Flags:")
+    fmt.Println("    --port    Specify an alternative port to run on. Defaults to 8080.")
+    fmt.Println("   --verbose  Print debugging information")
+
+  default:
+    fmt.Printf("Usage: %s <command> [<args>]\n", dollar0)
+    fmt.Println("Commonly used subcommands:")
+    fmt.Println(" - run        Execute a lovelace program interactively in a live-preview window")
+    fmt.Println(" - build      Compile lovelace syntax into an ast that can be run")
+    fmt.Println(" - serve      Run a lovelace server that can compile and run ast")
+    fmt.Println()
+    fmt.Println("Less-commonly used subcommands:")
+    fmt.Println(" - tokenize   Compile lovelace syntax into a list of tokens. ")
+  }
+}
+
 func main() {
-  var tokenize = flag.Bool("tokenize", false, "Only tokenize the input, don't actually convert to gates.")
-  var verbose = flag.Bool("verbose", false, "Print lots of debugging output.")
-  var server = flag.Bool("server", false, "Run as a http server")
-  flag.Parse()
+  // lovel tokenize foo.bit
+  tokenizerFlags := flag.NewFlagSet("tokenize", flag.ExitOnError)
+  tokenizerFlags.Usage = func() { help("tokenize") }
 
-  args := flag.Args()
+  // lovel build foo.bit
+  buildFlags := flag.NewFlagSet("build", flag.ExitOnError)
+  buildVerbose := buildFlags.Bool("verbose", false, "Print debug information")
+  buildFlags.Usage = func() { help("serve") }
 
-  if *server {
+  // lovel serve --port 2185
+  serverFlags := flag.NewFlagSet("serve", flag.ExitOnError)
+  serverVerbose := serverFlags.Bool("verbose", false, "Print debug information")
+  serverPort := serverFlags.Int("port", 8080, "")
+  serverFlags.Usage = func() { help("serve") }
+
+  // No subcommand printed? Print help.
+  if len(os.Args) == 1 {
+    help("")
+    return
+  }
+
+  // Parse the flags for the subcommand that is active.
+  switch os.Args[1] {
+  case "tokenize":
+    tokenizerFlags.Parse(os.Args[2:])
+
+    if len(os.Args) < 3 {
+      fmt.Println("No file was passed to tokenize. Stop.")
+      os.Exit(2)
+      return
+    }
+
+    // Read source code from disk
+    source, err := ioutil.ReadFile(os.Args[2])
+    if err != nil {
+      fmt.Printf("Error reading file %s: %s. Stop.\n", os.Args[2], err);
+      os.Exit(2)
+    }
+
+    // Tokenize the source code
+    result, err := Tokenizer(string(source))
+    if err != nil {
+      fmt.Println("Error tokenizing file %s: %s. Stop.", os.Args[2], err);
+      os.Exit(2)
+    }
+
+    PrintAst(result, 0, "")
+
+  case "build":
+    if len(os.Args) < 3 {
+      fmt.Println("No file path was passed to build. Stop.")
+      os.Exit(2)
+      return
+    }
+
+    buildFlags.Parse(os.Args[3:])
+
+    // Read source code from disk
+    source, err := ioutil.ReadFile(os.Args[2])
+    if err != nil {
+      fmt.Printf("Error reading file %s: %s. Stop.\n", os.Args[2], err);
+      os.Exit(2)
+      return
+    }
+
+    wireId = 0
+    gateId = 0
+    stackFrameId = 0
+
+    summary, err := run(string(source), *buildVerbose)
+    if err != nil {
+      fmt.Println(err);
+      os.Exit(2)
+      return
+    }
+
+    serialized, err2 := json.Marshal(summary)
+    if err2 != nil {
+      fmt.Println("Error serializing result: %s. Stop.", err2);
+      os.Exit(2)
+      return
+    }
+    fmt.Println(string(serialized))
+
+  case "serve":
+    serverFlags.Parse(os.Args[2:])
+
+    fmt.Println("Starting lovelace server...")
+
+    // Set a flag to inform the rest of the system that this process is running in server mode. This
+    // changes how a few things work, including:
+    // - Blocking local file imports. When running as a server, we don't want the user to have
+    // access to files on the server in their program.
     isRunningInServer = true
-    http.HandleFunc("/v1/compile", func(w http.ResponseWriter, r *http.Request) {
-      //Allow CORS here By * or specific origin
-      w.Header().Set("Access-Control-Allow-Origin", "*")
 
+    http.HandleFunc("/v1/compile", func(w http.ResponseWriter, r *http.Request) {
+      // Allow Cross Origin Resource Sharing
+      w.Header().Set("Access-Control-Allow-Origin", "*")
       w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
       buf := new(bytes.Buffer)
@@ -154,13 +280,14 @@ func main() {
       wireId = 0
       gateId = 0
       stackFrameId = 0
-      summary, err := act(source, *tokenize, *verbose)
+      summary, err := run(source, *serverVerbose)
       if err != nil {
         json.NewEncoder(w).Encode(map[string]string{"Error": err.Error()})
       } else {
         json.NewEncoder(w).Encode(summary)
       }
     })
+
     http.HandleFunc("/v1/run", func(w http.ResponseWriter, r *http.Request) {
       // Allow CORS here By * or specific origin
       w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -179,34 +306,21 @@ func main() {
       json.NewEncoder(w).Encode(map[string]interface{}{"Gates": gates, "Wires": wires})
     })
 
-    fmt.Println("Starting server on :8080")
-    err := http.ListenAndServe(":8080", nil)
+    fmt.Printf("Started server on %d\n", *serverPort)
+    err := http.ListenAndServe(fmt.Sprintf(":%d", *serverPort), nil)
     panic(err)
-  }
 
-  if len(args) == 0 {
-    fmt.Println("Please pass a file path to act on!")
+  // Print out help info
+  case "--help": fallthrough
+  case "-h": fallthrough
+  case "-?":
+    help("")
+    return
+
+  default:
+    fmt.Printf("Error: no such subcommand %s found. Stop.\n", os.Args[1])
+    os.Exit(2)
     return
   }
-
-  // Read source code from disk
-  source, err := ioutil.ReadFile(args[0])
-  if err != nil {
-    panic(err)
-  }
-
-
-  summary, err1 := act(string(source), *tokenize, *verbose)
-  if err1 != nil {
-    fmt.Println(err1)
-    return
-  }
-
-  serialized, err2 := json.Marshal(summary)
-  if err2 != nil {
-    fmt.Println(err2)
-    return
-  }
-  fmt.Println(string(serialized))
 }
 
