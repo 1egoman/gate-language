@@ -173,21 +173,6 @@ func help(subcomponent string) {
 }
 
 func main() {
-  // lovel tokenize foo.bit
-  tokenizerFlags := flag.NewFlagSet("tokenize", flag.ExitOnError)
-  tokenizerFlags.Usage = func() { help("tokenize") }
-
-  // lovel build foo.bit
-  buildFlags := flag.NewFlagSet("build", flag.ExitOnError)
-  buildVerbose := buildFlags.Bool("verbose", false, "Print debug information")
-  buildFlags.Usage = func() { help("serve") }
-
-  // lovel serve --port 2185
-  serverFlags := flag.NewFlagSet("serve", flag.ExitOnError)
-  serverVerbose := serverFlags.Bool("verbose", false, "Print debug information")
-  serverPort := serverFlags.Int("port", 8080, "")
-  serverFlags.Usage = func() { help("serve") }
-
   // No subcommand printed? Print help.
   if len(os.Args) == 1 {
     help("")
@@ -196,14 +181,19 @@ func main() {
 
   // Parse the flags for the subcommand that is active.
   switch os.Args[1] {
-  case "tokenize":
-    tokenizerFlags.Parse(os.Args[2:])
 
+  // lovel tokenize foo.bit
+  case "tokenize":
     if len(os.Args) < 3 {
       fmt.Println("No file was passed to tokenize. Stop.")
       os.Exit(2)
       return
     }
+
+    // Add flags
+    tokenizerFlags := flag.NewFlagSet("tokenize", flag.ExitOnError)
+    tokenizerFlags.Usage = func() { help("tokenize") }
+    tokenizerFlags.Parse(os.Args[2:])
 
     // Read source code from disk
     source, err := ioutil.ReadFile(os.Args[2])
@@ -221,6 +211,7 @@ func main() {
 
     PrintAst(result, 0, "")
 
+  // lovel build foo.bit
   case "build":
     if len(os.Args) < 3 {
       fmt.Println("No file path was passed to build. Stop.")
@@ -228,6 +219,10 @@ func main() {
       return
     }
 
+    // Add flags
+    buildFlags := flag.NewFlagSet("build", flag.ExitOnError)
+    buildVerbose := buildFlags.Bool("verbose", false, "Print debug information")
+    buildFlags.Usage = func() { help("serve") }
     buildFlags.Parse(os.Args[3:])
 
     // Read source code from disk
@@ -257,10 +252,16 @@ func main() {
     }
     fmt.Println(string(serialized))
 
+  // lovel serve --port 2185
   case "serve":
-    serverFlags.Parse(os.Args[2:])
-
     fmt.Println("Starting lovelace server...")
+
+    serverFlags := flag.NewFlagSet("serve", flag.ExitOnError)
+    serverVerbose := serverFlags.Bool("verbose", false, "Print debug information")
+    serverPort := serverFlags.Int("port", 8080, "")
+    serverFlags.Usage = func() { help("serve") }
+
+    serverFlags.Parse(os.Args[2:])
 
     // Set a flag to inform the rest of the system that this process is running in server mode. This
     // changes how a few things work, including:
