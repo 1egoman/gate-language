@@ -46,26 +46,16 @@ function createEditor(element) {
   const editor = CodeMirror(element, {
     lineNumbers: true,
     value: `
-import adder
-
-block toggle4() {
-  let a b c d = toggle() toggle() toggle() toggle()
-  return a b c d
-}
+import latch
 
 block main() {
-  let a0 a1 a2 a3 = toggle4()
-  let b0 b1 b2 b3 = toggle4()
-  
-  let c0 c1 c2 c3 = adder4(
-    a0 a1 a2 a3
-    b0 b1 b2 b3
-  )
-  
-  led(c0)
-  led(c1)
-  led(c2)
-  led(c3)
+  let clock = momentary()
+  let input = toggle()
+  let a0 a1 a2 a3 output = shiftregister4(clock input)
+  led(a0)
+  led(a1)
+  led(a2)
+  led(a3)
 }
 main()
     `,
@@ -80,7 +70,7 @@ const editor = createEditor(document.getElementById('editor-parent'));
 
 
 const compile = debounce(function compile(source) {
-  return fetch('http://localhost:8081/v1/compile', {
+  return fetch('http://localhost:8080/v1/compile', {
     method: 'POST',
     body: source,
     headers: {
@@ -131,9 +121,6 @@ const compile = debounce(function compile(source) {
         rootContextX += context.width;
         rootContextY += 0 //context.height;
       }
-
-      console.log('X', context.x, 'Y', context.y);
-      console.log('Width', context.width, 'Height', context.height);
     });
 
     let spacingByContext = {};
@@ -307,7 +294,7 @@ function renderFrame(updatedGateIds) {
   if (gateState !== newGateState) {
     gateState = newGateState;
 
-    return window.fetch('http://localhost:8081/v1/run', {
+    return window.fetch('http://localhost:8080/v1/run', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: {

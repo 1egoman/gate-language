@@ -720,3 +720,30 @@ func PrintAst(tokens *[]Node, indent int, prefix string) {
     }
   }
 }
+
+func TokenizeImports(input string) []string {
+  source := strings.Fields(input)
+  var imports []string
+
+  var importToken *Token = nil
+  // Find the import token
+  for _, tok := range TOKENS {
+    if tok.Name == "IMPORT" {
+      importToken = &tok
+      break
+    }
+  }
+
+  for len(source) > 0 {
+
+    // Found an import? Add it to the slice.
+    if result := importToken.Match.FindStringSubmatch(strings.Join(source, " ")); result != nil {
+      imports = append(imports, source[1])
+    }
+
+    source = source[1:]
+  }
+
+  return imports
+}
+

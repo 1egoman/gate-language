@@ -7,6 +7,9 @@ import (
 func setWire(wires []*Wire, id int, powered bool) {
   for _, wire := range wires {
     if wire.Id == id {
+      if wire.Powered != powered {
+        fmt.Println("SET WIRE", wire.Id, powered)
+      }
       wire.Powered = powered
       break
     }
@@ -37,6 +40,10 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
   var oldHash string = ""
   var newHash string
 
+  // Store a preview of the next wire state.
+  newWires := make([]*Wire, len(wires))
+  copy(newWires, wires)
+
   // Define a max iteration count. This provides a ceiling that can be used to halt infinite
   // recursions.
   reasonableMaxIterationCount := (len(wires) * 5) + (len(gates) * 5)
@@ -64,26 +71,27 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
     // flops aren't effected!
     for i := len(gates)-1; i >= 0; i-- {
       gate := gates[i]
+      fmt.Println("GATE", gate.Id)
 
       switch gate.Type {
       case "AND":
-        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) && getWire(wires, gate.Inputs[1].Id));
+        setWire(newWires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) && getWire(wires, gate.Inputs[1].Id));
       case "OR":
-        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) || getWire(wires, gate.Inputs[1].Id));
+        setWire(newWires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id) || getWire(wires, gate.Inputs[1].Id));
       case "NOT":
-        setWire(wires, gate.Outputs[0].Id, !getWire(wires, gate.Inputs[0].Id));
+        setWire(newWires, gate.Outputs[0].Id, !getWire(wires, gate.Inputs[0].Id));
       case "BLOCK_INPUT": fallthrough
       case "BLOCK_OUTPUT":
-        setWire(wires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id));
+        setWire(newWires, gate.Outputs[0].Id, getWire(wires, gate.Inputs[0].Id));
       case "SOURCE":
-        setWire(wires, gate.Outputs[0].Id, true);
+        setWire(newWires, gate.Outputs[0].Id, true);
       case "GROUND":
-        setWire(wires, gate.Outputs[0].Id, false);
+        setWire(newWires, gate.Outputs[0].Id, false);
 
       case "BUILTIN_FUNCTION":
         if (gate.Label == "momentary" || gate.Label == "toggle") {
           for i := 0; i < len(gate.Outputs); i++ {
-            setWire(wires, gate.Outputs[i].Id, gate.State == "on");
+            setWire(newWires, gate.Outputs[i].Id, gate.State == "on");
           }
         } else if (gate.Label == "led") {
           if getWire(wires, gate.Inputs[0].Id) {
@@ -143,20 +151,23 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
 
           if (gate.State[1] == '1') {
             /* The S side of the latch is active */
-            setWire(wires, gate.Outputs[0].Id, true);
+            setWire(newWires, gate.Outputs[0].Id, true);
             if len(gate.Outputs) > 1 { /* set not q if passed */
-              setWire(wires, gate.Outputs[1].Id, false);
+              setWire(newWires, gate.Outputs[1].Id, false);
             }
           } else {
             /* The R side of the latch is active */
-            setWire(wires, gate.Outputs[0].Id, false);
+            setWire(newWires, gate.Outputs[0].Id, false);
             if len(gate.Outputs) > 1 { /* set not q if passed */
-              setWire(wires, gate.Outputs[1].Id, true);
+              setWire(newWires, gate.Outputs[1].Id, true);
             }
           }
         }
       }
     }
+
+    // Copy new wires into the normal wires array for the next go around
+    copy(wires, newWires)
   }
 
   return gates, wires

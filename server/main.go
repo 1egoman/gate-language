@@ -7,9 +7,14 @@ import (
   "flag"
   "net/http"
   "bytes"
+  "time"
 
   // For reading file from disk
   "io/ioutil"
+
+  // Allow for file watching in `go run`
+  "github.com/radovskyb/watcher"
+  "github.com/gorilla/websocket"
 )
 
 type Summary struct {
@@ -125,6 +130,7 @@ func run(input string, verbose bool) (*Summary, error) {
   return &summary, nil
 }
 
+
 var isRunningInServer bool = false
 
 func help(subcomponent string) {
@@ -182,6 +188,126 @@ func main() {
   // Parse the flags for the subcommand that is active.
   switch os.Args[1] {
 
+  // lovel run foo.bit
+  case "run":
+    fmt.Println("Starting lovelace server...")
+
+    runFlags := flag.NewFlagSet("run", flag.ExitOnError)
+    runVerbose := runFlags.Bool("verbose", false, "Print debug information")
+    runPort := runFlags.Int("port", 8080, "")
+
+    runFlags.Usage = func() { help("run") }
+    runFlags.Parse(os.Args[2:])
+
+    if len(os.Args) < 3 {
+      fmt.Println("Error: not enough arguments were passed to run. Stop.")
+      os.Exit(2)
+      return
+    }
+
+    var connections []*websocket.Conn
+    var upgrader = websocket.Upgrader{
+      ReadBufferSize: 1024,
+      WriteBufferSize: 1024,
+      CheckOrigin: func(r *http.Request) bool {
+        return true
+      },
+    }
+
+    // On the first thread, accept websocket requests.
+    http.HandleFunc("/websocket", func(w http.ResponseWriter, r *http.Request) {
+      conn, err := upgrader.Upgrade(w, r, nil)
+      if err != nil {
+        fmt.Println(err)
+        return
+      }
+
+      // Add the connection to the group of collections.
+      connections = append(connections, conn)
+
+      fmt.Println("Client subscribed")
+    })
+
+    // In a second thread, watch for file changes. If a file changes, rebuild it.
+    go func() {
+      watcher := watcher.New()
+      watcher.SetMaxEvents(1)
+
+      fmt.Printf("Watching %s\n", os.Args[2])
+      if err := watcher.Add(os.Args[2]); err != nil {
+        fmt.Printf("Error watching source file %s: %s. Stop.\n", os.Args[2], err)
+        os.Exit(2)
+        return
+      }
+
+      go func() {
+        for {
+          select {
+          case event := <-watcher.Event:
+            if *runVerbose {
+              fmt.Printf("Event: %s\n", event)
+            }
+
+            // Read the contents of the file.
+            source, err := ioutil.ReadFile(os.Args[2])
+            if err != nil {
+              fmt.Printf("Error reading file %s: %s. Stop.\n", os.Args[2], err);
+              os.Exit(2)
+              return
+            }
+
+            // Compile the source
+            fmt.Printf("Compiling %s ... ", os.Args[2])
+            summary, err := run(string(source), *runVerbose)
+
+            // Print any errors received in the compilation process
+            if err != nil {
+              fmt.Printf("ERROR\nError: %s\n", err)
+            } else {
+              fmt.Printf("OK\n")
+            }
+
+            var payload []byte
+            if err == nil {
+              // The ast was compiled successfully.
+              payload, err = json.Marshal(summary)
+              if err != nil {
+                fmt.Println("Error serializing ast: %s. Stop.", err)
+              }
+            } else {
+              // An error occured.
+              payload, err = json.Marshal(map[string]string{ "Error": err.Error() })
+              if err != nil {
+                fmt.Println("Error serializing error: %s. Stop.", err)
+              }
+            }
+
+            // Then, send the ast over the websocket.
+            for index, conn := range connections {
+              err = conn.WriteMessage(websocket.TextMessage, payload)
+              if err != nil {
+                fmt.Println("Error sending payload to websocket client %d: %s. Stop.", index, err)
+              }
+            }
+
+          case err := <-watcher.Error:
+            fmt.Println("error:", err)
+          case <-watcher.Closed:
+            return
+          }
+        }
+      }()
+
+      if err := watcher.Start(time.Millisecond * 100); err != nil {
+        fmt.Printf("Error in filesystem watcher: %s. Stop.\n", err)
+      }
+    }()
+
+    fmt.Printf("Started server on %d\n", *runPort)
+    err := http.ListenAndServe(fmt.Sprintf(":%d", *runPort), nil)
+    panic(err)
+
+
   // lovel tokenize foo.bit
   case "tokenize":
     if len(os.Args) < 3 {
@@ -189,11 +315,6 @@ func main() {
       os.Exit(2)
       return
     }
-
-    // Add flags
-    tokenizerFlags := flag.NewFlagSet("tokenize", flag.ExitOnError)
-    tokenizerFlags.Usage = func() { help("tokenize") }
-    tokenizerFlags.Parse(os.Args[2:])
 
     // Read source code from disk
     source, err := ioutil.ReadFile(os.Args[2])
