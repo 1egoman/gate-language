@@ -213,19 +213,46 @@ func main() {
         return true
       },
     }
+    var lastPayload []byte = nil
 
-    // On the first thread, accept websocket requests.
-    http.HandleFunc("/websocket", func(w http.ResponseWriter, r *http.Request) {
+    // On the first thread, accept websocket requests and http requests to run the ast that was sent
+    // to the client in the websocket push.
+    http.HandleFunc("/v1/websocket", func(w http.ResponseWriter, r *http.Request) {
       conn, err := upgrader.Upgrade(w, r, nil)
       if err != nil {
         fmt.Println(err)
         return
       }
 
+      if lastPayload != nil {
+        err = conn.WriteMessage(websocket.TextMessage, lastPayload)
+        if err != nil {
+          fmt.Printf("Error sending payload to new websocket client: %s.\n", err)
+        }
+      }
+
       // Add the connection to the group of collections.
       connections = append(connections, conn)
 
       fmt.Println("Client subscribed")
+    })
+
+    http.HandleFunc("/v1/run", func(w http.ResponseWriter, r *http.Request) {
+      // Allow CORS here By * or specific origin
+      w.Header().Set("Access-Control-Allow-Origin", "*")
+      w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+      // Decode the body
+      decoder := json.NewDecoder(r.Body)
+      var body struct {
+        Gates []*Gate
+        Wires []*Wire
+      }
+      decoder.Decode(&body)
+
+      gates, wires := Execute(body.Gates, body.Wires)
+
+      json.NewEncoder(w).Encode(map[string]interface{}{"Gates": gates, "Wires": wires})
     })
 
     // In a second thread, watch for file changes. If a file changes, rebuild it.
@@ -272,13 +299,13 @@ func main() {
               // The ast was compiled successfully.
               payload, err = json.Marshal(summary)
               if err != nil {
-                fmt.Println("Error serializing ast: %s. Stop.", err)
+                fmt.Printf("Error serializing ast: %s.\n", err)
               }
             } else {
               // An error occured.
               payload, err = json.Marshal(map[string]string{ "Error": err.Error() })
               if err != nil {
-                fmt.Println("Error serializing error: %s. Stop.", err)
+                fmt.Printf("Error serializing error: %s.\n", err)
               }
             }
 
@@ -286,9 +313,17 @@ func main() {
             for index, conn := range connections {
               err = conn.WriteMessage(websocket.TextMessage, payload)
               if err != nil {
-                fmt.Println("Error sending payload to websocket client %d: %s. Stop.", index, err)
+                fmt.Printf("Error sending payload to websocket client %d: %s.\n", index, err)
+
+                // Close the connection. The client is smart enough to reconnect when this happens.
+                conn.Close()
+                connections = append(connections[:index], connections[index+1:]...)
               }
             }
+
+            // Save the last push. Any new clients will receive this push in order for it to get up
+            // to speed.
+            lastPayload = payload
 
           case err := <-watcher.Error:
             fmt.Println("error:", err)

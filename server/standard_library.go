@@ -9,10 +9,10 @@ var STANDARD_LIBRARY map[string]string = map[string]string {
 			let c2 = tflipflop(clock toggle_c2 0 reset)
 			
 			let toggle_c4 = (c1 and c2)
-			let c4 = tflipflop(clk toggle_c4 0 reset)
+			let c4 = tflipflop(clock toggle_c4 0 reset)
 
 			let toggle_c8 = ((c1 and c2) and c4)
-			let c8 = tflipflop(clk toggle_c8 0 reset)
+			let c8 = tflipflop(clock toggle_c8 0 reset)
 
 			return c1 c2 c4 c8
 		}
