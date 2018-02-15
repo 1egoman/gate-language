@@ -371,36 +371,11 @@ export default function renderViewport(viewport) {
   const gates = svg.append('g')
     .attr('class', 'layer layer-gates');
 
-  return (data, error, {viewboxX, viewboxY, renderFrame}) => {
+  return (data, {viewboxX, viewboxY, renderFrame}) => {
     const allGates = data.Gates,
           allWires = data.Wires,
           allContexts = data.Contexts,
           allOutputs = data.Outputs;
-
-    // If there's an error, render an error overlay.
-    const errorOverlay = svg.selectAll('g#error-overlay').data(error ? [{error, viewboxX, viewboxY}] : []);
-    const errorOverlayEnter = errorOverlay.enter()
-      .append('g')
-        .attr('id', 'error-overlay')
-
-    errorOverlayEnter.append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', '100%')
-      .attr('height', 100)
-      .attr('fill', 'red')
-    errorOverlayEnter.append('text')
-      .attr('transform', `translate(20,50)`)
-      .attr('fill', '#fff')
-
-    const errorOverlayMerge = errorOverlayEnter.merge(errorOverlay);
-    errorOverlayMerge
-      .attr('transform', d => `translate(${d.viewboxX},${ d.viewboxY})`)
-    errorOverlayMerge.select('text')
-      .text(d => d.error);
-
-    errorOverlay.exit().remove()
-
 
     renderGates(gates, {gates: allGates, wires: allWires, renderFrame});
     renderWires(wires, {wires: allWires, gates: allGates, outputs: allOutputs, renderFrame});

@@ -359,17 +359,27 @@ function renderFrame(updatedGateIds) {
         data.Wires[index].Powered = updates.Wires[index].Powered;
       });
 
-      renderFrame(data.Gates.map(i => i.Id));
+      // renderFrame([]);
+      // Rerender the viewport.
+      updateViewport(data, {viewboxX, viewboxY, renderFrame});
     }).catch(err => {
       console.error(err.stack);
       // Set a global error variable
       error = err.message;
+
       renderFrame([]);
     });
   }
 
+  if (error) {
+    document.getElementById('error-bar').style.display = 'flex';
+    document.getElementById('error-bar').innerText = error;
+  } else {
+    document.getElementById('error-bar').style.display = 'none';
+  }
+
   // Rerender the viewport.
-  updateViewport(data, error, {viewboxX, viewboxY, renderFrame});
+  updateViewport(data, {viewboxX, viewboxY, renderFrame});
 }
 
 // Initial frame render.

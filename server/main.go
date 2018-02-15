@@ -9,6 +9,9 @@ import (
   "bytes"
   "time"
 
+  "runtime"
+  "os/exec"
+
   // For reading file from disk
   "io/ioutil"
 
@@ -66,7 +69,7 @@ func run(input string, verbose bool) (*Summary, error) {
     }
 
     if verbose {
-      fmt.Println("GATES:")
+      // fmt.Println("GATES:")
       for _, gate := range gates {
         fmt.Printf("- %s ", gate.Type)
 
@@ -130,6 +133,21 @@ func run(input string, verbose bool) (*Summary, error) {
   return &summary, nil
 }
 
+// openBrowser tries to open the URL in a browser,
+// and returns whether it succeed in doing so.
+func openBrowser(url string) bool {
+	var args []string
+	switch runtime.GOOS {
+	case "darwin":
+		args = []string{"open"}
+	case "windows":
+		args = []string{"cmd", "/c", "start"}
+	default:
+		args = []string{"xdg-open"}
+	}
+	cmd := exec.Command(args[0], append(args[1:], url)...)
+	return cmd.Start() == nil
+}
 
 var isRunningInServer bool = false
 
@@ -214,6 +232,32 @@ func main() {
       },
     }
     var lastPayload []byte = nil
+
+    // Read source code from disk
+    source, err := ioutil.ReadFile(os.Args[2])
+    if err != nil {
+      fmt.Printf("Error reading file %s: %s. Stop.\n", os.Args[2], err);
+      os.Exit(2)
+      return
+    }
+
+    wireId = 0
+    gateId = 0
+    stackFrameId = 0
+
+    summary, err := run(string(source), *runVerbose)
+    if err != nil {
+      fmt.Println(err);
+      os.Exit(2)
+      return
+    }
+
+    lastPayload, err = json.Marshal(summary)
+    if err != nil {
+      fmt.Println("Error serializing result: %s. Stop.", err);
+      os.Exit(2)
+      return
+    }
 
     // On the first thread, accept websocket requests and http requests to run the ast that was sent
     // to the client in the websocket push.
@@ -338,8 +382,10 @@ func main() {
       }
     }()
 
+    openBrowser("http://localhost:3000?preview=true")
+
     fmt.Printf("Started server on %d\n", *runPort)
-    err := http.ListenAndServe(fmt.Sprintf(":%d", *runPort), nil)
+    err = http.ListenAndServe(fmt.Sprintf(":%d", *runPort), nil)
     panic(err)
 
 

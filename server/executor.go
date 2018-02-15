@@ -71,7 +71,7 @@ func Execute(gates []*Gate, wires []*Wire) ([]*Gate, []*Wire) {
     // flops aren't effected!
     for i := len(gates)-1; i >= 0; i-- {
       gate := gates[i]
-      fmt.Println("GATE", gate.Id)
+      // fmt.Println("GATE", gate.Id)
 
       switch gate.Type {
       case "AND":
