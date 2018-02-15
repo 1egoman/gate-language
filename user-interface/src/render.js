@@ -272,7 +272,7 @@ function renderWires(wireGroup, {wires, gates, outputs, renderFrame}) {
   wiresSelection.exit().remove()
 }
 
-function renderBlocks(blockGroup, {gates, contexts}) {
+function renderContexts(contextGroup, {gates, contexts}) {
   // Resize contexts to match the size of the gates within
   (contexts || []).sort((a, b) => b.Depth - a.Depth).forEach(context => {
     const contextGates = gates.filter(i => i.CallingContext === context.Id);
@@ -330,7 +330,7 @@ function renderBlocks(blockGroup, {gates, contexts}) {
     ]) + BLOCK_PADDING - context.y;
   });
 
-  const blocksSelection = blockGroup.selectAll('.block').data(contexts || []);
+  const blocksSelection = contextGroup.selectAll('.block').data(contexts || []);
   const blockEnterSelection = blocksSelection.enter();
 
   const blockEnterSelectionGroup = blockEnterSelection.append('g')
@@ -343,7 +343,7 @@ function renderBlocks(blockGroup, {gates, contexts}) {
     .attr('fill', '#000')
     .attr('style', 'user-select: none;')
 
-  const blockMergeSelection = blocksSelection.merge(blocksSelection);
+  const blockMergeSelection = blockEnterSelectionGroup.merge(blocksSelection);
   blockMergeSelection
     .attr('class', d => `block block-${(d.label || '').replace(/\s/g, '-').toLowerCase()}`)
     .attr('data-id', d => d.Id)
@@ -362,8 +362,8 @@ function renderBlocks(blockGroup, {gates, contexts}) {
 export default function renderViewport(viewport) {
   const svg = d3.select(viewport);
 
-  const blocks = svg.append('g')
-    .attr('class', 'layer layer-blocks');
+  const contexts = svg.append('g')
+    .attr('class', 'layer layer-contexts');
 
   const wires = svg.append('g')
     .attr('class', 'layer layer-wires');
@@ -379,6 +379,6 @@ export default function renderViewport(viewport) {
 
     renderGates(gates, {gates: allGates, wires: allWires, renderFrame});
     renderWires(wires, {wires: allWires, gates: allGates, outputs: allOutputs, renderFrame});
-    renderBlocks(blocks, {wires: allWires, gates: allGates, contexts: allContexts});
+    renderContexts(contexts, {wires: allWires, gates: allGates, contexts: allContexts});
   }
 }
