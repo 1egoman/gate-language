@@ -23,6 +23,7 @@ body {
 #viewport-parent {
   flex: 1;
   height: 100vh;
+  position: relative;
 }
 
 #zoom-slider {

@@ -167,6 +167,14 @@ function renderFrame(updatedGateIds) {
   data.Wires = data.Wires || []
   data.Outputs = data.Outputs || []
 
+  // Update error bar state
+  if (error) {
+    document.getElementById('error-bar').style.display = 'flex';
+    document.getElementById('error-bar').innerText = error;
+  } else {
+    document.getElementById('error-bar').style.display = 'none';
+  }
+
   // Calculate a hash of the current gate's state
   const newGateState = JSON.stringify(
     data.Gates.filter(i => i.Type === 'BUILTIN_FUNCTION' && ['toggle', 'momentary'].indexOf(i.Label) !== -1)
@@ -217,6 +225,7 @@ function renderFrame(updatedGateIds) {
       // Set a global error variable
       error = err.message;
 
+      // Update error bar state
       if (error) {
         document.getElementById('error-bar').style.display = 'flex';
         document.getElementById('error-bar').innerText = error;
