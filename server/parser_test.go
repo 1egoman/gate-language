@@ -18,6 +18,9 @@ func TestParsingAnd(t *testing.T) {
     },
   }
 
+  wireId = 0
+  gateId = 0
+  stackFrameId = 0
   gates, wires, callingcontexts, outputs, err := Parse(&[]Node{ast}, stack)
 
   // Verify error
