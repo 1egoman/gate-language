@@ -7,9 +7,9 @@ import (
 func setWire(wires []*Wire, id int, powered bool) {
   for _, wire := range wires {
     if wire.Id == id {
-      if wire.Powered != powered {
-        fmt.Println("SET WIRE", wire.Id, powered)
-      }
+      // if wire.Powered != powered {
+      //   fmt.Println("SET WIRE", wire.Id, powered)
+      // }
       wire.Powered = powered
       break
     }

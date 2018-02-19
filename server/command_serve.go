@@ -38,7 +38,7 @@ func Serve() {
     wireId = 0
     gateId = 0
     stackFrameId = 0
-    summary, err := run(source, *serverVerbose)
+    summary, err := RunString(source, *serverVerbose)
     if err != nil {
       json.NewEncoder(w).Encode(map[string]string{"Error": err.Error()})
     } else {
