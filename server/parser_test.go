@@ -1082,3 +1082,149 @@ func TestBlockDefinitionByItselfDoesntCreateGatesOrWires(t *testing.T) {
     t.Errorf(fmt.Sprintf("Unknown block %s!", block.Name))
   }
 }
+
+// let _ b = foo(1)
+func TestThrowawayVariable(t *testing.T) {
+  ast := []Node{
+    Node{Token: "ASSIGNMENT", Row: 3, Col: 1, Data: map[string]interface{}{"Names": "_ b", "Values": []Node{}}},
+    Node{
+      Token: "INVOCATION",
+      Row: 3,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "foo"},
+      Children: &[]Node{
+        Node{Token: "BOOL", Row: 3, Col: 1, Data: map[string]interface{}{"Value": true}},
+      },
+    },
+  }
+
+  // Create the block that will be invoked as part of the assignment
+  stack := []*StackFrame{
+    &StackFrame{
+      Blocks: []*Block{
+        &Block{
+          Name: "foo",
+          Content: &Node{
+            Token: "BLOCK",
+            Data: map[string]interface{}{
+              "Name": "foo",
+              "Params": "a",
+              "InputQuantity": 1,
+              "OutputQuantity": 2,
+            },
+            Children: &[]Node{
+              Node{Token: "BLOCK_RETURN"},
+              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+              Node{Token: "IDENTIFIER", Data: map[string]interface{}{"Value": "a"}},
+            },
+          },
+        },
+      },
+    },
+  }
+
+  wireId = 0
+  gateId = 0
+  stackFrameId = 0
+  gates, wires, callingcontexts, outputs, err := Parse(&ast, stack)
+
+  // Verify error
+  if err != nil {
+    t.Errorf(fmt.Sprintf("Error returned! %s", err))
+    return
+  }
+
+  // Verify gates
+  if !reflect.DeepEqual(gates, []*Gate{
+    &Gate{
+      Id: 1,
+      Type: SOURCE,
+      Inputs: []*Wire{},
+      Outputs: []*Wire{ &Wire{Id: 1} },
+      CallingContext: 0,
+    },
+    &Gate{
+      Id: 2,
+      Type: BLOCK_INPUT,
+      Label: "Input 0 into block foo invocation 1",
+      Inputs: []*Wire{ &Wire{Id: 1} },
+      Outputs: []*Wire{ &Wire{Id: 2} },
+      CallingContext: 1,
+    },
+    &Gate{
+      Id: 3,
+      Type: BLOCK_OUTPUT,
+      Label: "Output 0 from block foo invocation 1",
+      Inputs: []*Wire{ &Wire{Id: 2} },
+      Outputs: []*Wire{ &Wire{Id: 3} },
+      CallingContext: 1,
+    },
+    &Gate{
+      Id: 4,
+      Type: BLOCK_OUTPUT,
+      Label: "Output 1 from block foo invocation 1",
+      Inputs: []*Wire{ &Wire{Id: 2} },
+      Outputs: []*Wire{ &Wire{Id: 4} },
+      CallingContext: 1,
+    },
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []Gate{}
+    for _, gate := range gates {
+      deref = append(deref, *gate)
+    }
+    t.Error(fmt.Sprintf("Gates don't match! %+v", deref))
+  }
+
+  // Verify wires
+  if !reflect.DeepEqual(wires, []*Wire{
+    &Wire{Id: 1},
+    &Wire{Id: 2},
+    &Wire{Id: 2},
+    &Wire{Id: 2},
+    &Wire{Id: 3},
+    &Wire{Id: 4},
+    &Wire{Id: 4},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []Wire{}
+    for _, cc := range wires {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Wires don't match! %+v", deref))
+  }
+
+  // Verify calling contexts
+  if !reflect.DeepEqual(callingcontexts, []*CallingContext{
+    {Id: 1, Name: "foo", Depth: 1, Parent: 0, Children: []int{}},
+  }) {
+    // Dereference so we can see the contents of the pointers
+    deref := []CallingContext{}
+    for _, cc := range callingcontexts {
+      deref = append(deref, *cc)
+    }
+    t.Error(fmt.Sprintf("Calling Contexts don't match! %+v", deref))
+  }
+
+  // Verify outputs
+  if !reflect.DeepEqual(outputs, []*Wire{}) {
+    t.Error(fmt.Sprintf("Outputs don't match! %+v", gates))
+  }
+
+  // Ensure that the right variables are on the stack
+  for _, variable := range stack[0].Variables {
+    if variable.Name == "a" {
+      if variable.Value.Id != 3 {
+        t.Errorf("Variable a is attached to the wrong wire!")
+      }
+      continue
+    }
+    if variable.Name == "b" {
+      if variable.Value.Id != 4 {
+        t.Errorf("Variable b is attached to the wrong wire!")
+      }
+      continue
+    }
+    t.Errorf(fmt.Sprintf("Unknown variable %s!", variable.Name))
+  }
+}
