@@ -311,6 +311,9 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
       }
 
       for ct, name := range strings.Split(names, " ") {
+        // The variable _ is a throwaway value. Any assignments to it should be skipped.
+        if name == "_" { continue }
+
         // See if the variable that's being defined has already been defined in the latest stack
         // frame. If it has, get the wire that it refers to and replace every instance of that wire
         // in all gates with the wire that was just created. This facilitates the creation of
