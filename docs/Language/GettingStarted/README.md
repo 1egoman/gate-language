@@ -43,6 +43,42 @@ Lovelace is a tool for generating interactive logic diagrams.
 
 We're going to start by creating a super-simple logic diagram. It's going to consist of a led
 (an indicator light) that is connected to a toggle switch. A single wire will connect from the
-toggle switch to the led, and when the switch is turned on, the led will also turn on.
+toggle switch to the led, and when the switch is turned on, the led will also turn on. This is what
+it'll look like, both in its off and on state:
 
 ![./final.png](./final.png)
+
+## Writing the logic
+Lovelace makes it really easy to get started with its interactive preview, located at https://lovelace-preview.surge.sh/.
+
+Navigate to the interactive preview. It should look something like this:
+
+![./empty.png](./empty.png)
+
+There are two main sections: the editor and the viewport. The **editor** is the gray box on the left
+side of the screen. This is where you'll write your Lovelace code. The **viewport** is the white box
+on the right side of the screen. As you write Lovelace code on the left, you'll see the output
+rendered as an interactive logic diagram on the right.
+
+Next, enter this single line of code into the editor:
+```
+led(toggle())
+```
+
+After a couple seconds, you should see the viewport update to contain a toggle switch connected via
+a wire to an led. Let's walk through the code step-by-step to explain what happened.
+
+There are two key things that are being called in this code: `led` and `toggle`. `led` is a function
+that accepts a single parameter. If that parameter is on, the led turns on, and if that parameter is
+off, the led turns off. Within the `led` call, a `toggle` call was made. `toggle` is a language
+builtin to create a two-position (electrical engineers like to call it a single-pole-double-throw or
+a SPDT) switch. The toggle builtin returns one wire that reflects the state of the switch: if the
+switch is on, the wire is on, and if the switch is off, the wire is off.
+
+## Interacting with the diagram
+Toggle switches in Lovelace are pretty easy to interact with. If you shift click one, it'll toggle
+back and forth between being powered on and powered off. And, as you do this, you should notice that
+the led reflects the state of the toggle switch - when the toggle switch is turned on, the led turns
+on, and when the toggle switch is turned off, the led turns off.
+
+Congratz, you've created your first Lovelace logic diagram!
