@@ -413,6 +413,74 @@ func TestInvocation(t *testing.T) {
     t.Error("Fail!")
   }
 }
+func TestInvocationNoParams(t *testing.T) {
+  result, err := Tokenizer(`foo()`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "INVOCATION",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "foo"},
+      Children: &[]Node{},
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+func TestInvocationWithinInvocation(t *testing.T) {
+  result, err := Tokenizer(`foo(bar(a 1))`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "INVOCATION",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "foo"},
+      Children: &[]Node{
+        Node{
+          Token: "INVOCATION",
+          Row: 5,
+          Col: 1,
+          Data: map[string]interface{}{"Name": "bar"},
+          Children: &[]Node{
+            Node{Token: "IDENTIFIER", Row: 9, Col: 1, Data: map[string]interface{}{"Value": "a"}},
+            Node{Token: "BOOL", Row: 11, Col: 1, Data: map[string]interface{}{"Value": true}},
+          },
+        },
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
+func TestInvocationWithinInvocationWithArgsAfterward(t *testing.T) {
+  result, err := Tokenizer(`foo(bar(a 1) 0)`)
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{
+      Token: "INVOCATION",
+      Row: 1,
+      Col: 1,
+      Data: map[string]interface{}{"Name": "foo"},
+      Children: &[]Node{
+        Node{
+          Token: "INVOCATION",
+          Row: 5,
+          Col: 1,
+          Data: map[string]interface{}{"Name": "bar"},
+          Children: &[]Node{
+            Node{Token: "IDENTIFIER", Row: 9, Col: 1, Data: map[string]interface{}{"Value": "a"}},
+            Node{Token: "BOOL", Row: 11, Col: 1, Data: map[string]interface{}{"Value": true}},
+          },
+        },
+        Node{Token: "BOOL", Row: 14, Col: 1, Data: map[string]interface{}{"Value": false}},
+      },
+    },
+  }) {
+    t.Error("Fail!")
+  }
+}
 
 // Comments
 func TestSingleLineComment(t *testing.T) {

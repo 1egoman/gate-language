@@ -26,7 +26,12 @@ const (
 
 type Token struct {
   Name string
+
   Type TokenType
+  // Optional parameter used to specify the token that can be used to close a wrapper if `.Type` ==
+  // WRAPPER_START
+  WrapperEndName string
+
   Match *regexp.Regexp
   GetData func([]string) (map[string]interface{}, error)
   SideEffect func([]string, *TokenizerFrame) error
@@ -63,48 +68,34 @@ func init() {
     Token{Name: "OP_NOT", Type: UNARY_OPERATOR, Match: regexp.MustCompile("^not"), GetData: NO_DATA},
 
     Token{
-      Name: "GROUP",
+      Name: "INVOCATION",
+
       Type: WRAPPER_START,
+      WrapperEndName: "GROUP_END",
+
+      Match: regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\(`),
+      GetData: func(match []string) (map[string]interface{}, error) {
+        return map[string]interface{}{"Name": match[1]}, nil
+      },
+    },
+
+    Token{
+      Name: "GROUP",
+
+      Type: WRAPPER_START,
+      WrapperEndName: "GROUP_END",
+
       Match: regexp.MustCompile("^\\("),
       GetData: NO_DATA,
-
-      // Groups with an identifier right before them get converted into invocations.
-      SideEffect: func(match []string, stackframe *TokenizerFrame) error {
-        // Assert that the stackframe isn't nil.
-        if stackframe.Nodes == nil { return nil }
-
-        // Assert that the stackframe has at least two nodes within.
-        nodes := *stackframe.Nodes
-        if len(nodes) < 2 { return nil }
-
-        // Make sure the most recent node in the stack frame is a group
-        mostRecentNode := &nodes[len(nodes) - 1]
-        if mostRecentNode.Token != "GROUP" { return nil }
-
-        // Check to see if the token before the group was an identifier. If so, then this group isn't
-        // a group it's an invocation!
-        // identifier ()  =>  identifier()
-        //            /\- Group   /\- Invocation!
-        secondToMostRecentNode := nodes[len(nodes) - 2]
-        if secondToMostRecentNode.Token != "IDENTIFIER" { return nil }
-
-        // The group is an invocation!
-        mostRecentNode.Token = "INVOCATION"
-        mostRecentNode.Data["Name"] = secondToMostRecentNode.Data["Value"]
-        mostRecentNode.Row = secondToMostRecentNode.Row
-        mostRecentNode.Col = secondToMostRecentNode.Col
-
-        // Delete the penultimate node (the IDENTIFIER)
-        *stackframe.Nodes = append(nodes[:len(nodes)-2], nodes[len(nodes)-1])
-
-        return nil
-      },
     },
     Token{Name: "GROUP_END", Type: WRAPPER_END, Match: regexp.MustCompile("^\\)"), GetData: NO_DATA},
 
     Token{
       Name: "BLOCK",
+
       Type: WRAPPER_START,
+      WrapperEndName: "BLOCK_END",
+
       // block identifier(as many identifiers ay needed in here all space seperated) {
       Match: regexp.MustCompile(`^(?m)block\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*((([A-Za-z_][A-Za-z0-9_]*(?:\[\d+])?)\s*)*([A-Za-z_][A-Za-z0-9_]*(?:\[\d+]))?)\)\s*\{`),
       GetData: func(match []string) (map[string]interface{}, error) {
@@ -424,7 +415,7 @@ func Validator(nodes []Node) error {
 }
 
 func TokenNameIsExpression(name string) bool {
-  return name == "BOOL" || name == "IDENTIFIER" || name == "GROUP"
+  return name == "BOOL" || name == "IDENTIFIER" || name == "GROUP" || name == "INVOCATION"
 }
 
 func Tokenizer(input string) (*[]Node, error) {
@@ -569,21 +560,40 @@ func Tokenizer(input string) (*[]Node, error) {
           // Ensure that the stack frame we are closing has the same type as the symbol used to
           // close it.
           lastTokenizerFrame := stacks[len(stacks)-1]
-          typeShouldBe := regexp.MustCompile(`_END$`).ReplaceAllString(token.Name, "")
-          if lastTokenizerFrame.Type != typeShouldBe {
+          lastTokenizerFrameNodes := *lastTokenizerFrame.Nodes
+          lastNode := lastTokenizerFrameNodes[len(lastTokenizerFrameNodes) - 1]
+
+          // Find the token that matches the node that opened this frame
+          var lastToken *Token = nil
+          for _, tok := range TOKENS {
+            if tok.Name == lastNode.Token {
+              lastToken = &tok
+              break
+            }
+          }
+
+          if lastToken == nil {
             return nil, errors.New(fmt.Sprintf(
-              "Error: Attempted to close wrapper at %d:%d with a %s token, and not a %s_END token. Stop.",
+              "Error: No such token found on %d:%d - %s. Stop.",
+              currentRow,
+              currentCol,
+              lastTokenizerFrameNodes[0].Token,
+            ))
+          }
+
+          typeShouldBe := lastToken.WrapperEndName
+          if token.Name != typeShouldBe {
+            return nil, errors.New(fmt.Sprintf(
+              "Error: Attempted to close wrapper at %d:%d with a %s token, and not a %s token. Stop.",
               currentRow,
               currentCol,
               token.Name,
-              lastTokenizerFrame.Type,
+              typeShouldBe,
             ))
           }
 
           // Assign the `children` pointer back to the stack frame that it belongs to (ie, the last
           // node in the last stack frame)
-          lastTokenizerFrameNodes := *lastTokenizerFrame.Nodes
-          lastNode := lastTokenizerFrameNodes[len(lastTokenizerFrameNodes) - 1]
           *lastNode.Children = *children
 
           // Reassign children pointer back to its old value.
