@@ -3,16 +3,62 @@
 Lovelace has a number of core logic gates. Each accepts a fixed number of inputs and has a fixed
 number of outputs.
 
-- A **OR** gate accepts two inputs, and turns on it's single output if either input is on. An
+- An **OR** gate accepts two inputs, and turns on it's single output if either input is on. An
   example of its usage could be to allow someone to turn on something from two different switches in
   different locations in a room. In Lovelace, an `OR` gate only accepts two inputs.
+
+**Lovelace syntax**
+```
+let output = input_1 or input_2
+```
+
+**Truth table**
+
+| Input 1 | Input 2 | Output |
+|---------|---------|--------|
+| `0` | `0` | `0` |
+| `0` | `1` | `1` |
+| `1` | `0` | `1` |
+| `1` | `1` | `1` |
+
+<br />
+<br />
 
 - An **AND** gate accepts two inputs, and turns on it's single output when both inputs are on. An
   example of its usage would be in a system that requires two switches to be pressed at the same
   time in order to trigger something. In Lovelace, an `AND` gate only accepts two inputs.
 
+**Lovelace syntax**
+```
+let output = input_1 and input_2
+```
+
+**Truth table**
+
+| Input 1 | Input 2 | Output |
+|---------|---------|--------|
+| `0` | `0` | `0` |
+| `0` | `1` | `0` |
+| `1` | `0` | `0` |
+| `1` | `1` | `1` |
+
+<br />
+<br />
+
 - A **NOT** gate accepts a single input, and turns off it single output when its input is on. It's
   primarily used as an inverter.
+
+**Lovelace syntax**
+```
+let output = not input
+```
+
+**Truth table**
+
+| Input | Output |
+|-------|--------|
+| `0` | `1` |
+| `0` | `0` |
 
 That's all we need at the lowest level to build everything in Lovelace - just three gates.
 
