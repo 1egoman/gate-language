@@ -3,6 +3,8 @@
 Lovelace has a number of core logic gates. Each accepts a fixed number of inputs and has a fixed
 number of outputs.
 
+<br />
+
 - An **OR** gate accepts two inputs, and turns on it's single output if either input is on. An
   example of its usage could be to allow someone to turn on something from two different switches in
   different locations in a room. In Lovelace, an `OR` gate only accepts two inputs.
