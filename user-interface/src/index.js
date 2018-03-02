@@ -17,9 +17,12 @@ import debounce from 'lodash.debounce';
 import registerServiceWorker from './registerServiceWorker';
 registerServiceWorker();
 
+const DEFAULT_SERVER = window.location.href.match(/^https?:\/\/lovelace-preview/) ?
+  'https://lovelace-cloud.herokuapp.com' : 'http://localhost:8080';
+
 const query = queryString.parse(window.location.search);
 
-const server = query.server || 'http://localhost:8080';
+const server = query.server || DEFAULT_SERVER;
 const websocketsServer = (query.server || 'http://localhost:8080').replace('http', 'ws');
 
 // When in preview mode, don't render an editor. Instead, connect over websockets to a server
