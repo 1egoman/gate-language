@@ -4,14 +4,56 @@ export default function initializeViewport(element, server) {
   // Create a new viewport
   const updateViewport = renderViewport(element);
 
-  let viewboxX = 0, viewboxY = 0;
+  let viewboxX = 0, viewboxY = 0, viewboxZoom = 1.0;
 
   let gateState = null;
 
-  function renderFrame(data, error, updatedGateIds) {
+  // Deselect any selected items when the svg is clicked.
+  let moveOnSvg = false;
+  let hoistedData = null;
+  element.addEventListener('mousedown', event => {
+    moveOnSvg = event.target.getAttribute('id') === 'viewport' ||
+      event.target.getAttribute('id') === 'block' ||
+      event.target.getAttribute('id') === 'wire';
+
+    // Deselect all gates if clicking on the viewport background or a block.
+    if (hoistedData && moveOnSvg) {
+      hoistedData.Gates.forEach(i => {
+        i.active = false;
+      });
+      renderFrame(hoistedData, null, []);
+    }
+  });
+  element.addEventListener('mousemove', event => {
+    if (!hoistedData) {
+      return
+    }
+
+    let selected = hoistedData.Gates.filter(i => i.active === true);
+    if (event.buttons > 0 && moveOnSvg) {
+      viewboxX -= viewboxZoom * event.movementX;
+      viewboxY -= viewboxZoom * event.movementY;
+      console.log('DRAG', viewboxX, viewboxY)
+      updateViewport(hoistedData, {viewboxX, viewboxY, viewboxZoom, renderFrame});
+    } else if (event.buttons > 0 && selected.length > 0) {
+      selected.forEach(s => {
+        s.xPosition = (s.xPosition || 0) + viewboxZoom * event.movementX;
+        s.yPosition = (s.yPosition || 0) + viewboxZoom * event.movementY;
+      });
+      renderFrame(hoistedData, null, []);
+    }
+  });
+  element.addEventListener('mouseup', event => {
+    moveOnSvg = false;
+  });
+
+  async function renderFrame(data, error, updatedGateIds) {
+    console.log('RENDER FRAME', data, error, updatedGateIds)
     data.Gates = data.Gates || []
     data.Wires = data.Wires || []
     data.Outputs = data.Outputs || []
+
+    hoistedData = data;
 
     // Update error bar state
     if (error) {
@@ -33,20 +75,22 @@ export default function initializeViewport(element, server) {
     if (gateState !== newGateState) {
       gateState = newGateState;
 
-      return window.fetch(`${server}/v1/run`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-          'Content-Type': 'text/plain',
-          'Accept': 'application/json',
-        },
-      }).then(result => {
-        if (result.ok) {
-          return result.json();
-        } else {
+      try {
+        const result = await window.fetch(`${server}/v1/run`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: {
+            'Content-Type': 'text/plain',
+            'Accept': 'application/json',
+          },
+        });
+
+        if (!result.ok) {
           throw new Error(`Run failed: ${result.statusCode}`);
         }
-      }).then(updates => {
+
+        const updates = await result.json();
+
         // Was an error received while compiling?
         if (updates.Error) {
           throw new Error(updates.Error);
@@ -64,14 +108,14 @@ export default function initializeViewport(element, server) {
         });
 
         // Rerender the viewport.
-        updateViewport(data, {viewboxX, viewboxY, renderFrame});
-      }).catch(err => {
+        updateViewport(data, {viewboxX, viewboxY, viewboxZoom, renderFrame});
+      } catch (err) {
         renderFrame({}, err, []);
-      });
+      }
     } else {
       // Even if there wasn't any change to what should be rendered on screen, Rerender the viewport
       // anyway.
-      updateViewport(data, {viewboxX, viewboxY, renderFrame});
+      updateViewport(data, {viewboxX, viewboxY, viewboxZoom, renderFrame});
     }
   }
 

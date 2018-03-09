@@ -37,7 +37,7 @@ CodeMirror.defineSimpleMode('bitlang', {
 export function createEditor(element) {
   const editor = CodeMirror(element, {
     lineNumbers: true,
-    value: ``,
+    value: localStorage.source,
     mode: 'bitlang',
     theme: 'monokai',
   });
@@ -51,13 +51,14 @@ export default async function initializeEditor(element, renderFrame, server) {
 
   // Render editor contents at maximum once a second.
   const debouncedCompile = debounce(async (server, value) => {
+    let data = {};
     try {
       // Attempt to compile the source code.
-      const data = await compile(server, value);
+      data = await compile(server, value);
       renderFrame(data, null, data.Gates.map(i => i.Id));
     } catch (err) {
       // An error occurred within compliation!
-      renderFrame({}, err, data.Gates.map(i => i.Id));
+      renderFrame({}, err, []);
     }
   }, 1000);
 
@@ -70,5 +71,5 @@ export default async function initializeEditor(element, renderFrame, server) {
   });
 
   const data = await compile(server, editor.getValue());
-  renderFrame(data.Gates.map(i => i.Id));
+  renderFrame(data, null, data.Gates.map(i => i.Id));
 }

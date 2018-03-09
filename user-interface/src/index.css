@@ -19,6 +19,11 @@ body {
   background-color: #efefef;
 }
 
+#viewport {
+  width: 100%;
+  height: 100%;
+}
+
 #zoom-slider {
   position: absolute;
   top: 20px;
