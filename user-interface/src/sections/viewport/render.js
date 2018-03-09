@@ -360,6 +360,7 @@ function renderContexts(contextGroup, {gates, contexts}) {
 }
 
 export default function renderViewport(viewport) {
+  console.log('VIEWPORT', viewport);
   const svg = d3.select(viewport);
 
   const contexts = svg.append('g')

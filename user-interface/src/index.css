@@ -12,18 +12,11 @@ body {
   height: 100vh;
 }
 
-#resize-bar {
-  width: 50px;
-  background-color: #ccc;
-  cursor: resize;
-  cursor: col-resize;
-  height: 100vh;
-}
-
 #viewport-parent {
   flex: 1;
   height: 100vh;
   position: relative;
+  background-color: #efefef;
 }
 
 #zoom-slider {
