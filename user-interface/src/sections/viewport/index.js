@@ -1,5 +1,7 @@
 import renderViewport from './render';
 
+const zoomSlider = document.getElementById('zoom-slider');
+
 export default function initializeViewport(element, server) {
   // Create a new viewport
   const updateViewport = renderViewport(element);
@@ -46,8 +48,8 @@ export default function initializeViewport(element, server) {
     moveOnSvg = false;
   });
 
-  // Control zooming of the viewport. Zooming is performed on an exponential scale, which makes the
-  // scrolling seem more "even" in my humble testing.
+  // Control zooming of the viewport.
+
   const ZOOM_MINIMUM_LIMIT = 1; // Smallest zoom level possible.
   const ZOOM_MAXIMUM_LIMIT = 10; // Largest zoom level possible.
 
@@ -55,10 +57,10 @@ export default function initializeViewport(element, server) {
   // amount.
   const ZOOM_RATIO = 300;
 
-  element.addEventListener('wheel', event => {
-    const zoomDirection = event.wheelDelta < 0 ? -1 : 1;
-    const zoomDelta = zoomDirection * Math.pow(event.wheelDelta / ZOOM_RATIO, 2);
+  function updateZoom(zoomDelta) {
     viewboxZoom += zoomDelta;
+
+    zoomSlider.value = viewboxZoom;
 
     // Stay within zoom limits
     if (viewboxZoom < ZOOM_MINIMUM_LIMIT) {
@@ -75,7 +77,23 @@ export default function initializeViewport(element, server) {
 
     // At this point, ZOOM_MINIMUM_LIMIT <= viewboxZoom <= ZOOM_MAXIMUM_LIMIT.
     updateViewport(hoistedData, {viewboxX, viewboxY, viewboxZoom, renderFrame});
+  }
+
+  // Option 1: zoom with the mouse wheel. This works well with a mouse wheel or a touchpad.
+  element.addEventListener('wheel', event => {
+    // Calculate zoom from scroll wheel posititon.
+    const zoomDelta = -1 * event.wheelDelta / ZOOM_RATIO;
+    updateZoom(zoomDelta);
   });
+
+  // Option 2: zoom with the range slider. This is an option if the system you are on does not have
+  // a mouse wheel or a touchpad.
+  zoomSlider.addEventListener('input', event => {
+    const delta = event.target.value - viewboxZoom;
+    updateZoom(delta);
+  });
+
+  // (maybe) Future option 3: pinch to zoom?
 
   async function renderFrame(data, error, updatedGateIds) {
     console.log('RENDER FRAME', data, error, updatedGateIds)
