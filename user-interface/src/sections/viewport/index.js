@@ -33,7 +33,6 @@ export default function initializeViewport(element, server) {
     if (event.buttons > 0 && moveOnSvg) {
       viewboxX -= viewboxZoom * event.movementX;
       viewboxY -= viewboxZoom * event.movementY;
-      console.log('DRAG', viewboxX, viewboxY)
       updateViewport(hoistedData, {viewboxX, viewboxY, viewboxZoom, renderFrame});
     } else if (event.buttons > 0 && selected.length > 0) {
       selected.forEach(s => {
@@ -45,6 +44,37 @@ export default function initializeViewport(element, server) {
   });
   element.addEventListener('mouseup', event => {
     moveOnSvg = false;
+  });
+
+  // Control zooming of the viewport. Zooming is performed on an exponential scale, which makes the
+  // scrolling seem more "even" in my humble testing.
+  const ZOOM_MINIMUM_LIMIT = 1; // Smallest zoom level possible.
+  const ZOOM_MAXIMUM_LIMIT = 10; // Largest zoom level possible.
+
+  // Used to scale the raw mouse event deltas so that one scroll wheel "click" zooms the correct
+  // amount.
+  const ZOOM_RATIO = 300;
+
+  element.addEventListener('wheel', event => {
+    const zoomDirection = event.wheelDelta < 0 ? -1 : 1;
+    const zoomDelta = zoomDirection * Math.pow(event.wheelDelta / ZOOM_RATIO, 2);
+    viewboxZoom += zoomDelta;
+
+    // Stay within zoom limits
+    if (viewboxZoom < ZOOM_MINIMUM_LIMIT) {
+      viewboxZoom = ZOOM_MINIMUM_LIMIT;
+    } else if (viewboxZoom > ZOOM_MAXIMUM_LIMIT) {
+      viewboxZoom = ZOOM_MAXIMUM_LIMIT;
+    } else {
+
+      // If zooming within limits, then adjust the x and y posititons to ensure that the center of
+      // the screen is maintained throught zooming.
+      viewboxX -= zoomDelta * ZOOM_RATIO;
+      viewboxY -= zoomDelta * ZOOM_RATIO;
+    }
+
+    // At this point, ZOOM_MINIMUM_LIMIT <= viewboxZoom <= ZOOM_MAXIMUM_LIMIT.
+    updateViewport(hoistedData, {viewboxX, viewboxY, viewboxZoom, renderFrame});
   });
 
   async function renderFrame(data, error, updatedGateIds) {
