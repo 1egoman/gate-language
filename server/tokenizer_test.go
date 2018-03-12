@@ -269,10 +269,24 @@ func TestAssignmentWithUnwrappedAndOperator(t *testing.T) {
   }
 }
 
+// let a = not b
+func TestAssignmentWithUnwrappedNotOperator(t *testing.T) {
+  result, err := Tokenizer("let a = not b")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
+    Node{Token: "OP_NOT", Row: 9, Col: 1, Data: map[string]interface{}{
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 13, Col: 1, Data: map[string]interface{}{"Value": "b"}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // let a = not b and c
 // This is ambiguous - should it be not(a and b) or (not a) and b? - and should fail.
 func TestAssignmentWithUnwrappedAndOperatorAndNotOperatorShouldFail(t *testing.T) {
-  _, err := Tokenizer("let a = b and c")
+  _, err := Tokenizer("let a = not b and c")
   if err == nil {
     t.Error("Error was not returned!")
     return
