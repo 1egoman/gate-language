@@ -32,6 +32,32 @@ body {
   z-index: 100;
 }
 
+#viewport-refreshing {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  flex: 0;
+  z-index: 100;
+
+  width: 21px;
+  height: 21px;
+
+  padding: 8px;
+  background-color: #ccc;
+  border-radius: 4px;
+
+  display: none;
+}
+
+#viewport-refreshing-success {
+  fill: #44bb44;
+  animation: viewport-refreshing-spin 2.4s infinite;
+}
+#viewport-refreshing-error {
+  fill: #bb4444;
+  display: none;
+}
+
 #error-bar {
   position: absolute;
   top: calc(50% - 100px);

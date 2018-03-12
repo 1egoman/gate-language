@@ -10,6 +10,9 @@ export default function initializeViewport(element, server) {
 
   let gateState = null;
 
+  // Store if the system is currently in an error state.
+  let currentError = null;
+
   // Deselect any selected items when the svg is clicked.
   let moveOnSvg = false;
   let hoistedData = null;
@@ -23,7 +26,7 @@ export default function initializeViewport(element, server) {
       hoistedData.Gates.forEach(i => {
         i.active = false;
       });
-      renderFrame(hoistedData, null, []);
+      renderFrame(hoistedData, currentError, []);
     }
   });
   element.addEventListener('mousemove', event => {
@@ -41,7 +44,7 @@ export default function initializeViewport(element, server) {
         s.xPosition = (s.xPosition || 0) + viewboxZoom * event.movementX;
         s.yPosition = (s.yPosition || 0) + viewboxZoom * event.movementY;
       });
-      renderFrame(hoistedData, null, []);
+      renderFrame(hoistedData, currentError, []);
     }
   });
   element.addEventListener('mouseup', event => {
@@ -96,7 +99,6 @@ export default function initializeViewport(element, server) {
   // (maybe) Future option 3: pinch to zoom?
 
   async function renderFrame(data, error, updatedGateIds) {
-    console.log('RENDER FRAME', data, error, updatedGateIds)
     data.Gates = data.Gates || []
     data.Wires = data.Wires || []
     data.Outputs = data.Outputs || []
@@ -104,6 +106,7 @@ export default function initializeViewport(element, server) {
     hoistedData = data;
 
     // Update error bar state
+    currentError = error;
     if (error) {
       document.getElementById('error-bar').style.display = 'flex';
       document.getElementById('error-bar').innerText = error;

@@ -51,14 +51,27 @@ export default async function initializeEditor(element, renderFrame, server) {
 
   // Render editor contents at maximum once a second.
   const debouncedCompile = debounce(async (server, value) => {
+    document.getElementById('viewport-refreshing').style.display = 'block';
     let data = {};
     try {
       // Attempt to compile the source code.
       data = await compile(server, value);
       renderFrame(data, null, data.Gates.map(i => i.Id));
+
+      localStorage.source = value;
+
+      setTimeout(() => {
+        document.getElementById('viewport-refreshing').style.display = 'none';
+        document.getElementById('viewport-refreshing-success').style.display = 'block';
+        document.getElementById('viewport-refreshing-error').style.display = 'none';
+      }, 100);
     } catch (err) {
       // An error occurred within compliation!
       renderFrame({}, err, []);
+
+      document.getElementById('viewport-refreshing').style.display = 'block';
+      document.getElementById('viewport-refreshing-success').style.display = 'none';
+      document.getElementById('viewport-refreshing-error').style.display = 'block';
     }
   }, 1000);
 
@@ -66,7 +79,6 @@ export default async function initializeEditor(element, renderFrame, server) {
   // pane.
   editor.on('change', () => {
     const value = editor.getValue();
-    localStorage.source = value;
     debouncedCompile(server, value);
   });
 
