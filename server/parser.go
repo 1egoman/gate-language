@@ -264,7 +264,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
         // fmt.Printf("  * found new param on rhs: %+v\n", parameter)
 
         // Verify that the token is of the proper type.
-        if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
+        if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "OP_OR" || parameter.Token == "OP_AND" || parameter.Token == "OP_NOT" || parameter.Token == "INVOCATION") {
           return nil, nil, nil, nil, errors.New(fmt.Sprintf(
             "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.\n",
             input.Row,
