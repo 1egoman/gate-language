@@ -244,6 +244,25 @@ func TestAssignmentWithMultipleValues(t *testing.T) {
   }
 }
 
+// let a b = c and d e and f
+func TestAssignmentWithUngroupedMultipleValues(t *testing.T) {
+  result, err := Tokenizer("let a b = c and d e and f")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a b", "Values": []Node{}}},
+    Node{Token: "OP_AND", Row: 13, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 11, Col: 1, Data: map[string]interface{}{"Value": "c"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 17, Col: 1, Data: map[string]interface{}{"Value": "d"}},
+    }},
+    Node{Token: "OP_AND", Row: 21, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 19, Col: 1, Data: map[string]interface{}{"Value": "e"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 25, Col: 1, Data: map[string]interface{}{"Value": "f"}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // let return = 1
 func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
   _, err := Tokenizer("let return = 1")

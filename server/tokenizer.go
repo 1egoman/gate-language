@@ -633,7 +633,7 @@ func Tokenizer(input string) (*[]Node, error) {
         // unary or binary operator, add the token we just added in the right hand side of the
         // previous token.
         if len(*children) >= 2 && TokenNameIsExpression((*children)[len(*children)-1].Token) {
-          if _, ok := (*children)[len(*children) - 2].Data["RightHandSide"]; ok {
+          if rhs, ok := (*children)[len(*children) - 2].Data["RightHandSide"]; ok && rhs == nil {
 
             // Get right hand side - the last toke in the list
             childrenValue := *children

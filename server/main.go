@@ -89,7 +89,7 @@ func main() {
     // Tokenize the source code
     result, err := Tokenizer(string(source))
     if err != nil {
-      fmt.Println("Error tokenizing file %s: %s. Stop.", os.Args[2], err);
+      fmt.Printf("Error tokenizing file %s: %s\n", os.Args[2], err);
       os.Exit(2)
     }
 
