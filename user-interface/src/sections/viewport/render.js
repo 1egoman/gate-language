@@ -47,7 +47,10 @@ const BUILTIN_GATE_MOUSEUP_HANDLERS = {
   },
 }
 
-function renderGates(gateGroup, {gates, wires, renderFrame}) {
+function renderGates(gateGroup, {data, renderFrame}) {
+  const gates = data.Gates,
+        wires = data.Wires;
+
   const gatesSelection = gateGroup.selectAll('.gate').data(gates);
 
   // Add a new gates when new data elements show up
@@ -58,7 +61,7 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
       if (!d3.event.shiftKey) {
         // Clicking on a gate selects it.
         d.active = true;
-        renderFrame([d.Id]);
+        renderFrame(data, null, [d.Id]);
       }
     })
     .on('mousedown', function(d) {
@@ -67,7 +70,7 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
         const clickHandler = BUILTIN_GATE_MOUSEDOWN_HANDLERS[d.Label];
         if (clickHandler) {
           clickHandler(d);
-          renderFrame([d.Id]);
+          renderFrame(data, null, [d.Id]);
         }
       }
     })
@@ -77,7 +80,7 @@ function renderGates(gateGroup, {gates, wires, renderFrame}) {
         const mouseupHandler = BUILTIN_GATE_MOUSEUP_HANDLERS[d.Label];
         if (mouseupHandler) {
           mouseupHandler(d);
-          renderFrame([d.Id]);
+          renderFrame(data, null, [d.Id]);
         }
       }
     })
@@ -371,14 +374,18 @@ export default function renderViewport(viewport) {
   const gates = svg.append('g')
     .attr('class', 'layer layer-gates');
 
-  return (data, {viewboxX, viewboxY, renderFrame}) => {
+  return (data, {viewboxX, viewboxY, viewboxZoom, renderFrame}) => {
     const allGates = data.Gates,
           allWires = data.Wires,
           allContexts = data.Contexts,
           allOutputs = data.Outputs;
 
-    renderGates(gates, {gates: allGates, wires: allWires, renderFrame});
-    renderWires(wires, {wires: allWires, gates: allGates, outputs: allOutputs, renderFrame});
+    svg
+      .attr('viewBox', `${viewboxX} ${viewboxY} ${viewboxZoom * viewport.clientWidth} ${viewboxZoom * viewport.clientHeight}`)
+      .attr('data-zoom', viewboxZoom);
+
+    renderGates(gates, {data, renderFrame});
+    renderWires(wires, {wires: allWires, gates: allGates, outputs: allOutputs});
     renderContexts(contexts, {wires: allWires, gates: allGates, contexts: allContexts});
   }
 }

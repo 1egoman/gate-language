@@ -326,7 +326,7 @@ func PreSideEffectValidator(nodes []Node) error {
     // Ensure that the only groups, literals, and identifiers are found after a return.
     if nodes[i].Token == "BLOCK_RETURN" && len(nodes) > i {
       for _, node := range nodes[i+1:] {
-        if node.Token != "BOOL" && node.Token != "GROUP" && node.Token != "IDENTIFIER" {
+        if !TokenNameIsExtendedExpression(node.Token) {
           return errors.New(fmt.Sprintf("Non-expression token %s found after return", node.Token))
         }
       }
@@ -414,8 +414,16 @@ func Validator(nodes []Node) error {
   return nil
 }
 
+// An expression is a token that can appear in either the right hand side or left hand side of an
+// operator.
 func TokenNameIsExpression(name string) bool {
   return name == "BOOL" || name == "IDENTIFIER" || name == "GROUP" || name == "INVOCATION"
+}
+
+// An extended expression is an expression, plus some tokens that would usually be ambiguous next to
+// an operator.
+func TokenNameIsExtendedExpression(name string) bool {
+  return TokenNameIsExpression(name) || name == "OP_AND" || name == "OP_OR" || name == "OP_NOT"
 }
 
 func Tokenizer(input string) (*[]Node, error) {
@@ -625,7 +633,7 @@ func Tokenizer(input string) (*[]Node, error) {
         // unary or binary operator, add the token we just added in the right hand side of the
         // previous token.
         if len(*children) >= 2 && TokenNameIsExpression((*children)[len(*children)-1].Token) {
-          if _, ok := (*children)[len(*children) - 2].Data["RightHandSide"]; ok {
+          if rhs, ok := (*children)[len(*children) - 2].Data["RightHandSide"]; ok && rhs == nil {
 
             // Get right hand side - the last toke in the list
             childrenValue := *children

@@ -21,7 +21,8 @@ func help(subcomponent string) {
     fmt.Println("Compiles lovelace source into a list of gates and wires that can be executed.")
     fmt.Println()
     fmt.Println("Flags:")
-    fmt.Println("   --verbose  Print debugging information")
+    fmt.Println("   --verbose\t\tPrint debugging information")
+    fmt.Println("   --max-call-depth\tChange the max block invocation depth. Setting to 0 disables the limit. Defaults to 100.")
 
   case "tokenize":
     fmt.Printf("Usage: %s tokenize <file.bit>", dollar0)
@@ -89,7 +90,7 @@ func main() {
     // Tokenize the source code
     result, err := Tokenizer(string(source))
     if err != nil {
-      fmt.Println("Error tokenizing file %s: %s. Stop.", os.Args[2], err);
+      fmt.Printf("Error tokenizing file %s: %s\n", os.Args[2], err);
       os.Exit(2)
     }
 
@@ -97,24 +98,32 @@ func main() {
 
   // lovel build foo.bit
   case "build":
-    if len(os.Args) < 3 {
-      fmt.Println("No file path was passed to build. Stop.")
-      os.Exit(2)
-      return
-    }
-
     // Add flags
     buildFlags := flag.NewFlagSet("build", flag.ExitOnError)
     buildVerbose := buildFlags.Bool("verbose", false, "Print debug information")
-    buildFlags.Usage = func() { help("serve") }
-    buildFlags.Parse(os.Args[3:])
+    buildMaxCallDepth := buildFlags.Int("max-call-depth", -1, "Set the maximum call depth")
+    buildFlags.Usage = func() { help("build") }
+    buildFlags.Parse(os.Args[2:])
 
     wireId = 0
     gateId = 0
     stackFrameId = 0
 
+    // Set max call depth if a value was specified.
+    if *buildMaxCallDepth != -1 {
+      INVOCATION_MAX_RECURSION_DEPTH = *buildMaxCallDepth
+    }
+
+    fmt.Println(buildFlags.NArg())
+    if buildFlags.NArg() != 1 {
+      fmt.Println("No file path was passed to build. Stop.")
+      os.Exit(2)
+      return
+    }
+
+
     // Read source code from disk
-    summary, err := RunFile(os.Args[2], *buildVerbose)
+    summary, err := RunFile(buildFlags.Args()[0], *buildVerbose)
     if err != nil {
       fmt.Println(err);
       os.Exit(2)

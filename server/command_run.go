@@ -40,16 +40,26 @@ func openBrowser(url string) bool {
 func Run() {
   runFlags := flag.NewFlagSet("run", flag.ExitOnError)
   runVerbose := runFlags.Bool("verbose", false, "Print debug information")
+  runMaxCallDepth := runFlags.Int("max-call-depth", -1, "Set the maximum call depth")
   runPort := runFlags.Int("port", 8080, "")
 
-  if len(os.Args) < 3 {
-    fmt.Println("Error: not enough arguments were passed to run. Stop.")
+  runFlags.Usage = func() { help("run") }
+  runFlags.Parse(os.Args[2:])
+
+  fmt.Println(runFlags.Args())
+
+  if runFlags.NArg() != 1 {
+    fmt.Println("Error: No file was passed to run. Stop.")
     os.Exit(2)
     return
   }
 
-  runFlags.Usage = func() { help("run") }
-  runFlags.Parse(os.Args[3:])
+  filePath := runFlags.Args()[0]
+
+  // Set max call depth if a value was specified.
+  if *runMaxCallDepth != -1 {
+    INVOCATION_MAX_RECURSION_DEPTH = *runMaxCallDepth
+  }
 
   fmt.Println("Starting lovelace server...")
 
@@ -63,7 +73,7 @@ func Run() {
   }
   var lastPayload []byte = nil
 
-  summary, err := RunFile(os.Args[2], *runVerbose)
+  summary, err := RunFile(runFlags.Args()[0], *runVerbose)
   if err != nil {
     lastPayload, err = json.Marshal(map[string]string{"Error": err.Error()})
     if err != nil {
@@ -127,9 +137,9 @@ func Run() {
     watcher := watcher.New()
     watcher.SetMaxEvents(1)
 
-    fmt.Printf("Watching %s\n", os.Args[2])
-    if err := watcher.Add(os.Args[2]); err != nil {
-      fmt.Printf("Error watching source file %s: %s. Stop.\n", os.Args[2], err)
+    fmt.Printf("Watching %s\n", filePath)
+    if err := watcher.Add(filePath); err != nil {
+      fmt.Printf("Error watching source file %s: %s. Stop.\n", filePath, err)
       os.Exit(2)
       return
     }
@@ -143,8 +153,8 @@ func Run() {
           }
 
           // Compile the source
-          fmt.Printf("Compiling %s ... ", os.Args[2])
-          summary, err := RunFile(os.Args[2], *runVerbose)
+          fmt.Printf("Compiling %s ... ", filePath)
+          summary, err := RunFile(filePath, *runVerbose)
 
           // Print any errors received in the compilation process
           if err != nil {
@@ -197,6 +207,7 @@ func Run() {
     }
   }()
 
+  fmt.Println("Opening browser...");
   openBrowser(fmt.Sprintf("http://lovelace-preview.surge.sh/?preview=true&server=http://localhost:%d", *runPort))
 
   fmt.Printf("Started server on %d\n", *runPort)

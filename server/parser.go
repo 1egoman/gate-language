@@ -71,6 +71,8 @@ var BUILTIN_FUNCTION_NAMES []string =        []string{"led", "wave", "momentary"
 var BUILTIN_FUNCTION_MINIMUM_INPUT_NUMBER []int=[]int{1    , 1     , 0          , 0       , 2}
 var BUILTIN_FUNCTION_RETURN_NUMBER []int=       []int{0    , 1     , 1          , 1       , 2}
 
+var INVOCATION_MAX_RECURSION_DEPTH = 100
+
 func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingContext, []*Wire, error) {
   gates := []*Gate{}
   wires := []*Wire{}
@@ -264,7 +266,7 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
         // fmt.Printf("  * found new param on rhs: %+v\n", parameter)
 
         // Verify that the token is of the proper type.
-        if !( TokenNameIsExpression(parameter.Token) || parameter.Token == "INVOCATION" ) {
+        if !TokenNameIsExtendedExpression(parameter.Token) {
           return nil, nil, nil, nil, errors.New(fmt.Sprintf(
             "Token that is after assignment (assignment is at %d:%d, token is at %d:%d) and trying to be assigned to variable `%s` is not an expression (is %s). Stop.\n",
             input.Row,
@@ -541,6 +543,17 @@ func Parse(inputs *[]Node, stack []*StackFrame) ([]*Gate, []*Wire, []*CallingCon
           &Block{Name: "__self", Content: block.Content},
         },
       })
+
+      // Verify that the user hasn't called deeper into the stack then they should
+      if INVOCATION_MAX_RECURSION_DEPTH > 0 && len(invocationStack) > INVOCATION_MAX_RECURSION_DEPTH {
+        return nil, nil, nil, nil, errors.New(fmt.Sprintf(
+          "The invocation at %d:%d (trying to invoke %s) has surpassed the max call depth of %d. Stop.\n",
+          input.Row,
+          input.Col,
+          block.Name,
+          INVOCATION_MAX_RECURSION_DEPTH,
+        ))
+      }
 
       // Also, take note of the new calling context we've created. We're recording mostly the same
       // information that was put onto the stack. but this collection is insert only.

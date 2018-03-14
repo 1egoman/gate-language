@@ -244,6 +244,25 @@ func TestAssignmentWithMultipleValues(t *testing.T) {
   }
 }
 
+// let a b = c and d e and f
+func TestAssignmentWithUngroupedMultipleValues(t *testing.T) {
+  result, err := Tokenizer("let a b = c and d e and f")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a b", "Values": []Node{}}},
+    Node{Token: "OP_AND", Row: 13, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 11, Col: 1, Data: map[string]interface{}{"Value": "c"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 17, Col: 1, Data: map[string]interface{}{"Value": "d"}},
+    }},
+    Node{Token: "OP_AND", Row: 21, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 19, Col: 1, Data: map[string]interface{}{"Value": "e"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 25, Col: 1, Data: map[string]interface{}{"Value": "f"}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
 // let return = 1
 func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
   _, err := Tokenizer("let return = 1")
@@ -252,6 +271,46 @@ func TestAssignmentIdentifiersCannotBeAReservedWord(t *testing.T) {
     return
   }
   if !reflect.DeepEqual(err.Error(), "Error: Validation Failed on 1:1 - Identifier return is a reserved word, and cannot be assigned to. Stop.") { t.Error("Error: "+err.Error()) }
+}
+
+// let a = b and c
+func TestAssignmentWithUnwrappedAndOperator(t *testing.T) {
+  result, err := Tokenizer("let a = b and c")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
+    Node{Token: "OP_AND", Row: 11, Col: 1, Data: map[string]interface{}{
+      "LeftHandSide": Node{Token: "IDENTIFIER", Row: 9, Col: 1, Data: map[string]interface{}{"Value": "b"}},
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 15, Col: 1, Data: map[string]interface{}{"Value": "c"}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
+// let a = not b
+func TestAssignmentWithUnwrappedNotOperator(t *testing.T) {
+  result, err := Tokenizer("let a = not b")
+  if err != nil { t.Error("Error:"+err.Error()) }
+  if !reflect.DeepEqual(*result, []Node{
+    Node{Token: "ASSIGNMENT", Row: 1, Col: 1, Data: map[string]interface{}{"Names": "a", "Values": []Node{}}},
+    Node{Token: "OP_NOT", Row: 9, Col: 1, Data: map[string]interface{}{
+      "RightHandSide": Node{Token: "IDENTIFIER", Row: 13, Col: 1, Data: map[string]interface{}{"Value": "b"}},
+    }},
+  }) {
+    t.Error("Fail!")
+  }
+}
+
+// let a = not b and c
+// This is ambiguous - should it be not(a and b) or (not a) and b? - and should fail.
+func TestAssignmentWithUnwrappedAndOperatorAndNotOperatorShouldFail(t *testing.T) {
+  _, err := Tokenizer("let a = not b and c")
+  if err == nil {
+    t.Error("Error was not returned!")
+    return
+  }
+  if err.Error() != "Error: Attempted to parse a binary operator ([and]), but there wasn't a valid expression before the operator on line 15:1. Stop." { t.Error("Incorrect error returned!") }
 }
 
 // BLOCKS
