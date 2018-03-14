@@ -1,15 +1,15 @@
 
 // Given a context, return the x and y positions within the context for each gate.
-function getGatePositionsWithinContext(context, gates) {
-  const gatesInContext = gates.filter(i => i.CallingContext.toString() === context.Id.toString())
-
-  return gatesInContext.map(gate => {
-    return {
-      x: gate.xPosition - context.x,
-      y: gate.yPosition - context.y,
-    };
-  });
-}
+// function getGatePositionsWithinContext(context, gates) {
+//   const gatesInContext = gates.filter(i => i.CallingContext.toString() === context.Id.toString())
+//
+//   return gatesInContext.map(gate => {
+//     return {
+//       x: gate.xPosition - context.x,
+//       y: gate.yPosition - context.y,
+//     };
+//   });
+// }
 
 // Given the response from a compilation, position all the gates on the screen.
 export default function positionGates(data) {
