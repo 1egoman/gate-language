@@ -1,0 +1,19 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/node:9.3
+    steps:
+      - checkout
+      - run:
+          name: "UI: Install dependencies"
+          command: cd user-interface && yarn
+      - run:
+          name: "UI: Build"
+          command: cd user-interface && yarn build
+      - run:
+          name: "UI: Push"
+          command: |
+            npm install --global surge
+            cd user-interface/build && surge --project ./ --domain lovelace-preview.surge.sh
