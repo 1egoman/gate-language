@@ -57,33 +57,6 @@ function renderGates(gateGroup, {data, renderFrame}) {
   const gatesSelectionEnter = gatesSelection.enter()
     .append('g')
     .attr('class', 'gate')
-    .on('click', function(d) {
-      if (!d3.event.shiftKey) {
-        // Clicking on a gate selects it.
-        d.active = true;
-        renderFrame(data, null, [d.Id]);
-      }
-    })
-    .on('mousedown', function(d) {
-      if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
-        // If the builtin has a click handler, call it.
-        const clickHandler = BUILTIN_GATE_MOUSEDOWN_HANDLERS[d.Label];
-        if (clickHandler) {
-          clickHandler(d);
-          renderFrame(data, null, [d.Id]);
-        }
-      }
-    })
-    .on('mouseup', function(d) {
-      if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
-        // If the builtin has a mouseup handler, call it.
-        const mouseupHandler = BUILTIN_GATE_MOUSEUP_HANDLERS[d.Label];
-        if (mouseupHandler) {
-          mouseupHandler(d);
-          renderFrame(data, null, [d.Id]);
-        }
-      }
-    })
   gatesSelectionEnter.append('g')
     .attr('class', 'gate-contents')
   gatesSelectionEnter.append('text')
@@ -115,7 +88,35 @@ function renderGates(gateGroup, {data, renderFrame}) {
     .attr('data-id', d => d.Id)
     .attr('transform', d => {
       return `translate(${d.xPosition || 0},${d.yPosition || 0})`;
-    });
+    })
+    .on('click', function(d) {
+      if (!d3.event.shiftKey) {
+        // Clicking on a gate selects it.
+        d.active = true;
+        renderFrame(data, null, [d.Id]);
+      }
+    })
+    .on('mousedown', function(d) {
+      if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
+        // If the builtin has a click handler, call it.
+        const clickHandler = BUILTIN_GATE_MOUSEDOWN_HANDLERS[d.Label];
+        if (clickHandler) {
+          clickHandler(d);
+          console.log('DATA', data)
+          renderFrame(data, null, [d.Id]);
+        }
+      }
+    })
+    .on('mouseup', function(d) {
+      if (d3.event.shiftKey && d.Type === 'BUILTIN_FUNCTION') {
+        // If the builtin has a mouseup handler, call it.
+        const mouseupHandler = BUILTIN_GATE_MOUSEUP_HANDLERS[d.Label];
+        if (mouseupHandler) {
+          mouseupHandler(d);
+          renderFrame(data, null, [d.Id]);
+        }
+      }
+    })
 
   // FIXME: help with the below. I'm hacking around d3 and I don't like it.
   gatesMergeSelection.select('.gate-contents')
