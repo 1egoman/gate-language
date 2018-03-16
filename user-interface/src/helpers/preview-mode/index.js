@@ -23,6 +23,6 @@ export default function connectToPreviewWebsocket(renderFrame, websocketsServer)
 
   // On close, wait three seconds and try to connect again.
   ws.onclose = event => {
-    setTimeout(connectToPreviewWebsocket, 3000);
+    setTimeout(() => connectToPreviewWebsocket(renderFrame, websocketsServer), 3000);
   }
 }

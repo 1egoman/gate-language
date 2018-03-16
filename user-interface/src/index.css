@@ -11,6 +11,7 @@ body {
   width: 30%;
   height: 100vh;
 }
+.preview #editor-parent { display: none; }
 
 #viewport-parent {
   flex: 1;

@@ -7,7 +7,7 @@ import initializeViewport from './sections/viewport/index';
 
 import connectToPreviewWebsocket from './helpers/preview-mode/index';
 
-import './sections/pane-splits/index';
+import buildSplits from './sections/pane-splits/index';
 
 import registerServiceWorker from './registerServiceWorker';
 registerServiceWorker();
@@ -25,9 +25,11 @@ const renderFrame = initializeViewport(document.getElementById('viewport'), serv
 
 const previewMode = Boolean(query.preview);
 if (previewMode) {
+  document.body.className += ' preview';
   const websocketsServer = server.replace('http', 'ws');
   connectToPreviewWebsocket(renderFrame, websocketsServer);
 } else {
+  buildSplits();
   initializeEditor(document.getElementById('editor-parent'), renderFrame, server);
 }
 
