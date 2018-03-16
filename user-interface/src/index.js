@@ -5,6 +5,8 @@ import queryString from 'query-string';
 import initializeEditor from './sections/editor/index';
 import initializeViewport from './sections/viewport/index';
 
+import connectToPreviewWebsocket from './helpers/preview-mode/index';
+
 import './sections/pane-splits/index';
 
 import registerServiceWorker from './registerServiceWorker';
@@ -16,54 +18,18 @@ const DEFAULT_SERVER = window.location.href.match(/^https?:\/\/lovelace-preview/
 const query = queryString.parse(window.location.search);
 
 const server = query.server || DEFAULT_SERVER;
-// const websocketsServer = (query.server || 'http://localhost:8080').replace('http', 'ws');
 
-// When in preview mode, don't render an editor. Instead, connect over websockets to a server
-// running on the local system and whenever a new ast update is pushed, update what is shown in the
-// visualization.
-// const previewMode = Boolean(query.preview);
-// if (previewMode) {
-//   document.getElementById('resize-bar').style.display = 'none';
-//   document.getElementById('editor-parent').style.display = 'none';
-//
-//   // Create websocket server connection
-//   function connect() {
-//     const ws = new WebSocket(`${websocketsServer}/v1/websocket`);
-//     ws.onmessage = function(event) {
-//       const payload = JSON.parse(event.data);
-//       if (payload.Gates) {
-//         data = payload;
-//         error = null;
-//
-//         // Position gates on the screen
-//         data = positionGates(data);
-//       } else {
-//         error = payload.Error;
-//       }
-//
-//       // Rerender using the data received.
-//       renderFrame(data.Gates.map(i => i.Id));
-//     }
-//
-//     // On close, wait three seconds and try to connect again.
-//     ws.onclose = function(event) {
-//       setTimeout(connect, 3000);
-//     }
-//   }
-//   connect();
-// }
-
-// If in normal editing mode, then render an editor
-// const editor = !previewMode ?
-//   initializeEditor(document.getElementById('editor-parent'), server) :
-//   null;
 
 // Get a reference to the svg viewport
 const renderFrame = initializeViewport(document.getElementById('viewport'), server);
 
-const editor = initializeEditor(document.getElementById('editor-parent'), renderFrame, server);
-
-console.log(editor)
+const previewMode = Boolean(query.preview);
+if (previewMode) {
+  const websocketsServer = server.replace('http', 'ws');
+  connectToPreviewWebsocket(renderFrame, websocketsServer);
+} else {
+  initializeEditor(document.getElementById('editor-parent'), renderFrame, server);
+}
 
 
 
